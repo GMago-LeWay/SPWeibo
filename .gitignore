@@ -1,0 +1,13 @@
+.vscode
+data
+images*
+pretrained_model
+repost_data
+
+log
+results
+
+*.png
+*.jpg
+*.out
+*.csv
