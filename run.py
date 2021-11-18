@@ -59,6 +59,7 @@ def run(args, config):
     # save result
     logging.info(getTime() + '本次最优结果：%.4f' % best_score)
 
+    model.load_state_dict(torch.load(args.model_save_path))
     test_results = train.do_test(model=model, dataloader=test_loader, mode="TEST")
 
     return test_results
