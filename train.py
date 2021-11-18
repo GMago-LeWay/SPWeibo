@@ -103,7 +103,7 @@ class SPW():
                             model.to(self.args.device)
                         # early stop
                         if valid_num - best_valid_num >= self.config.early_stop:
-                            break
+                            return best_valid
         
         return best_valid
 
