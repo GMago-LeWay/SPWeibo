@@ -53,13 +53,15 @@ def run(args, config):
     model = model_to_be_init(config=config, args=args).to(args.device)
     train_to_be_init = getTrain(modelName=args.modelName)
     train = train_to_be_init(args=args, config=config)
-    train_loader, val_loader = dataset_.get_train_val_dataloader()
+    train_loader, val_loader, test_loader = dataset_.get_train_val_dataloader()
     # do train
     best_score = train.do_train(model=model, train_dataloader=train_loader, val_dataloader=val_loader)
     # save result
     logging.info(getTime() + '本次最优结果：%.4f' % best_score)
 
-    return best_score
+    test_results = train.do_test(model=model, dataloader=test_loader, mode="TEST")
+
+    return test_results
 
 def run_eval(args, config):
     
@@ -81,6 +83,7 @@ def run_eval(args, config):
 def run_task(args, seeds, configure):
     logging.info('************************************************************')
     logging.info(getTime() + '本轮参数：' + str(configure))
+    logging.info(getTime() + '本轮Args：' + str(args))
 
     result = []
 
@@ -88,8 +91,8 @@ def run_task(args, seeds, configure):
         setup_seed(seed)
         # 每个种子训练开始
         logging.info(getTime() + 'Seed：%d 训练开始' % seed)      
-        score = run(args, configure)
-        result.append(score)
+        current_res = run(args, configure)
+        result.append(current_res[configure.KeyEval])
 
     # 保存实验结果
     mean, std = round(np.mean(result)*100, 2), round(np.std(result)*100, 2)

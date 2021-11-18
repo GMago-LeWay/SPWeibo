@@ -9,6 +9,7 @@ class Metrics():
     def __init__(self):
         self.metrics_dict = {
             'match': self._eval_binary,
+            'spw': self._eval_regression,
         }
     
     def get_metrics(self, modelName):

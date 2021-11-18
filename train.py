@@ -87,12 +87,12 @@ class SPW():
                         train_results = self.metrics(pred, true)
                         logging.info("TRAIN-(%s) (%d/%d/%d)>> loss: %.4f %s" % (self.args.modelName, \
                                     epochs, valid_num - best_valid_num, valid_num, train_loss_avg, dict_to_str(train_results)))
-                        # scheduler step
-                        scheduler.step(train_results[self.config.KeyEval])
 
                         # validation
                         val_results = self.do_test(model, val_dataloader, mode="VAL")
                         cur_valid = val_results[self.config.KeyEval]
+                        # scheduler step
+                        scheduler.step(cur_valid)
                         # save best model
                         isBetter = cur_valid <= (best_valid - 1e-6) if min_or_max == 'min' else cur_valid >= (best_valid + 1e-6)
                         # save best model

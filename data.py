@@ -28,21 +28,24 @@ class WeiboData(Dataset):
         return [[texts[i], sequence[i]] for i in range(len(texts))]
 
     def get_train_val_dataloader(self):
-        gross_data = self.get_data_for_match_model(self.get_data())
+        gross_data = self.get_data()
+        test_num = int(self.config.test * len(gross_data))
+        val_num = int(self.config.validate * len(gross_data))
+        test = gross_data[-test_num:]
         # select data
-        selected_data = gross_data
-        val_num = int(self.config.validate * len(selected_data))
+        selected_data = gross_data[:-test_num]
         train, val = random_split(selected_data, [len(selected_data)-val_num, val_num])
-        logging.info(getTime() + 'Total Train samples: %d, Total Valid samples: %d' % (len(train), len(val)))
+        logging.info(getTime() + 'Total Train samples: %d, Total Valid samples: %d, Total Test samples: %d' % (len(train), len(val), len(test)))
         return DataLoader(train, batch_size=self.config.batch_size, collate_fn=self.get_collate_fn(), drop_last=False), \
-                DataLoader(val, batch_size=self.config.batch_size, collate_fn=self.get_collate_fn(), drop_last=False)
+                DataLoader(val, batch_size=self.config.batch_size, collate_fn=self.get_collate_fn(), drop_last=False), \
+                DataLoader(test, batch_size=self.config.batch_size, collate_fn=self.get_collate_fn(), drop_last=False)
 
 
     def get_collate_fn(self):
         def collate_fn(batch):
             batch_size = len(batch)
             texts = [batch[i][0] for i in range(batch_size)]
-            labels = torch.FloatTensor([batch[i][1] for i in range(batch_size)])
+            labels = torch.log(torch.FloatTensor([batch[i][1] + 1. for i in range(batch_size)]))
             texts = self.tokenizer(texts, padding=True, truncation=True, max_length=self.config.text_cut, return_tensors="pt")
             return {'texts': texts, 'labels': labels}
         return collate_fn
