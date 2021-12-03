@@ -43,10 +43,10 @@ class Config:
 
             # 学习参数设置
             'max_epochs': 50,
-            'learning_rate_bert': 1e-05,
-            'learning_rate_other': 0.002,
-            'weight_decay_bert': 0.0001,
-            'weight_decay_other': 0,         
+            'learning_rate_bert': 5e-05,
+            'learning_rate_other': 0.0005,
+            'weight_decay_bert': 0.,
+            'weight_decay_other': 0.0001,         
             'early_stop': 8,
 
             # 评估设置

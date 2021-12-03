@@ -4,6 +4,7 @@ data
 images*
 pretrained_model
 repost_data
+temp*
 
 log
 results

@@ -9,12 +9,14 @@ import os
 import pandas as pd
 import urllib
 from tqdm import tqdm
+import matplotlib.pyplot as plt
 
 from train import getTrain
 from utils import getTime
 from data import getData
 from model import getModel
 from config import Config
+from statistics import getKmeans
 
 
 def setup_seed(seed):
@@ -32,11 +34,11 @@ def parse_args():
                         help='path to save results.')
     parser.add_argument('--res_save_dir', type=str, default='results/results',
                         help='path to save results.')
-    parser.add_argument('--device', type=int, default=0,
+    parser.add_argument('--device', type=int, default=1,
                         help='GPU id.')
     parser.add_argument('--tune', type=bool, default=False,
                         help='True if run tune task.')
-    parser.add_argument('--infer', type=bool, default=False,
+    parser.add_argument('--infer', type=bool, default=True,
                         help='True if run infer task.')
     parser.add_argument('--load', type=str, default='results/models/spw.pth',
                         help='model to be loaded in infer task.')
@@ -69,6 +71,7 @@ def run_eval(args, config):
     # model settings
     # BUG
     dataset_ = getData(args.modelName)(args=args, config=config)
+    train_loader, val_loader, test_loader = dataset_.get_train_val_dataloader()
     model_to_be_init = getModel(modelName=args.modelName)
     model = model_to_be_init(config=config, args=args).to(args.device)
     model.load_state_dict(torch.load(args.load))
@@ -76,7 +79,29 @@ def run_eval(args, config):
     train = train_to_be_init(args=args, config=config)
 
     # infer
-    results = train.do_infer(model, dataset_.get_test_dataloader())
+    results, pred, true = train.do_test(model, test_loader, mode='TEST')
+
+    kmeans = getKmeans(3)
+    set_ = set()
+    pred_analysis = []
+    true_analysis = []
+    for i in range(true.shape[0]):
+        cls_ = kmeans.predict([np.array(true[i])])[0]
+        if cls_ not in set_:
+            set_.add(cls_)
+            pred_analysis.append(np.array(pred[i]))
+            true_analysis.append(np.array(true[i]))
+        if len(set_) == 3:
+            break
+
+    for i in range(3):
+        x = np.arange(0, 24)
+        plt.bar(x, pred_analysis[i], facecolor='blue', width=3, label='Pred')
+        plt.plot(x, true_analysis[i], color= 'red', linewidth=7, label = 'True')
+        plt.title("Pred and True Sequence %d" % i)
+        plt.legend()
+        plt.savefig("result%d.png" % i)
+        plt.clf()
 
     return results
 
@@ -96,7 +121,7 @@ def run_task(args, seeds, configure):
         result.append(current_res[configure.KeyEval])
 
     # 保存实验结果
-    mean, std = round(np.mean(result)*100, 2), round(np.std(result)*100, 2)
+    mean, std = round(np.mean(result), 2), round(np.std(result), 2)
     logging.info('本轮效果均值：%f, 标准差：%f' % (mean, std))
 
     save_path = os.path.join(args.res_save_dir,

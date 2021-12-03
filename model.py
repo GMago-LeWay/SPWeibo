@@ -21,6 +21,29 @@ class BaseModel(torch.nn.Module):
         return representation
 
 
+class SPWRNN(torch.nn.Module):
+    def __init__(self, config, args) -> None:
+        super(SPW, self).__init__()
+        self.config = config
+        self.args = args
+        self.language_model = BaseModel(self.config.pretrained_model)
+        self.language_model_config = AutoConfig.from_pretrained(self.config.pretrained_model)
+
+        self.predict_model = torch.nn.LSTM(
+            input_size=1,
+            hidden_size=self.language_model_config.hidden_size,
+            batch_first=True,
+            proj_size=1,
+        )
+
+    def forward(self, text, dec_input):
+        text_representation = self.language_model(text['input_ids'], text['attention_mask'])
+        initial_hidden_state = text_representation.unsqueeze(1)
+        prediction, (_, _) = self.predict_model(dec_input, (initial_hidden_state, torch.zeros_like(initial_hidden_state)))
+
+        return prediction
+
+
 class SPW(torch.nn.Module):
     def __init__(self, config, args) -> None:
         super(SPW, self).__init__()
@@ -41,6 +64,7 @@ class SPW(torch.nn.Module):
 def getModel(modelName):
     MODEL_MAP = {
         'spw': SPW,
+        'spwrnn': SPWRNN,
     }
 
     assert modelName in MODEL_MAP.keys(), 'Not support ' + modelName

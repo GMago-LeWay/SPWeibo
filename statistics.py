@@ -54,11 +54,17 @@ content_df = pd.read_csv("content.csv")
 
 content_text = content_df["content"].to_list()
 repost_num = content_df["repost_num"].to_list()
+content_len = [len(text) for text in content_text]
 
 # 统计分位数
+print("**********************Repost Num*********************")
 print("Repost Num: 99%: " + str(np.percentile(repost_num, 99)))
 print("Repost Num: 95%: " + str(np.percentile(repost_num, 95)))
 print("Repost Num: 90%: " + str(np.percentile(repost_num, 90)))
+print("Repost Num: 10%: " + str(np.percentile(repost_num, 50)))
+print("Repost Num: 5%: " + str(np.percentile(repost_num, 5)))
+print("Repost Num: 1%: " + str(np.percentile(repost_num, 1)))
+
 
 # 筛选编号
 def filter(array, max_length=5000):
@@ -73,7 +79,17 @@ def filter(array, max_length=5000):
 
 set_95 = filter(repost_num, max_length=np.percentile(repost_num, 95))
 
+
+repost_num_list_idx = list(set_95)
+repost_num_list = [repost_num[i] for i in repost_num_list_idx]
+print(np.argmin(repost_num), "repost num: ", repost_num[np.argmin(repost_num)])
+draw_hist(repost_num_list, 0, max(repost_num_list)+200, 200, "repost_num", "images_overall/repost_num.png")
 # 挑选几个例子画图
+
+print("**********************Content Len*********************")
+print(max(content_len))
+print(min(content_len))
+draw_hist(content_len, 0, max(content_len)+100, 100, "content_len", "images_overall/content_len.png")
 
 random.shuffle(set_95)
 # for i in range(20):
@@ -89,56 +105,61 @@ random.shuffle(set_95)
 #                 x_label='log(hours)', file_name='images/log_hours'+str(i)+'.jpg',
 #                 lambda_expression=lambda x: np.log(x+1))
 
-repost_vectors_48h = []
-repost_vectors_24h = []
-text_df_48h = {'content': []}
-text_df_24h = {'content': []}
+# repost_vectors_48h = []
+# repost_vectors_24h = []
+# text_df_48h = {'content': []}
+# text_df_24h = {'content': []}
 
-print("loading time series...")
-for number in tqdm(set_95):
-    repost_vector = get_time_series(data_list=load_repost_data(number), start=0, end=48, width=1)
-    repost_vectors_48h.append(np.array(repost_vector))
-    text_df_48h['content'].append(content_text[number])
-    repost_vector = get_time_series(data_list=load_repost_data(number), start=0, end=24, width=1)
-    repost_vectors_24h.append(np.array(repost_vector))
-    text_df_24h['content'].append(content_text[number])
+# print("loading time series...")
+# for number in tqdm(set_95):
+#     repost_vector = get_time_series(data_list=load_repost_data(number), start=0, end=48, width=1)
+#     repost_vectors_48h.append(np.array(repost_vector))
+#     text_df_48h['content'].append(content_text[number])
+#     repost_vector = get_time_series(data_list=load_repost_data(number), start=0, end=24, width=1)
+#     repost_vectors_24h.append(np.array(repost_vector))
+#     text_df_24h['content'].append(content_text[number])
 
-np.save('data/48', np.array(repost_vectors_48h))
-np.save('data/24', np.array(repost_vectors_24h))
-pd.DataFrame(text_df_48h).to_csv('data/48.csv')
-pd.DataFrame(text_df_24h).to_csv('data/24.csv')
+# np.save('data/48', np.array(repost_vectors_48h))
+# np.save('data/24', np.array(repost_vectors_24h))
+# pd.DataFrame(text_df_48h).to_csv('data/48.csv')
+# pd.DataFrame(text_df_24h).to_csv('data/24.csv')
 
-# repost_vectors_48h = np.load('data/48.npy')
-# repost_vectors_24h = np.load('data/24.npy')
 
-LOG = True
-if LOG:
-    repost_vectors_48h = np.log(repost_vectors_48h + 1)
-    repost_vectors_24h = np.log(repost_vectors_24h + 1)
+def getKmeans(n_clusters):
+    repost_vectors_48h = np.load('data/48.npy')
+    repost_vectors_24h = np.load('data/24.npy')
+    LOG = True
+    if LOG:
+        repost_vectors_48h = np.log(repost_vectors_48h + 1)
+        repost_vectors_24h = np.log(repost_vectors_24h + 1)
 
-# K-均值聚类
-from sklearn.cluster import KMeans
-x = np.arange(2,11,1)
-cluster_loss_48h = []
-cluster_loss_24h = []
-for i in x:
-    n_clusters=i
-    cluster = KMeans(n_clusters=n_clusters,random_state=0).fit(repost_vectors_48h)
-    # print("Kmeans%d Loss:" % n_clusters, cluster.inertia_)
-    cluster_loss_48h.append(cluster.inertia_)
+    # K-均值聚类
+    from sklearn.cluster import KMeans
+    x = np.arange(2,11,1)
+    cluster_loss_48h = []
+    cluster_loss_24h = []
+    # for i in x:
+    #     n_clusters=i
+    #     cluster = KMeans(n_clusters=n_clusters,random_state=0).fit(repost_vectors_48h)
+    #     # print("Kmeans%d Loss:" % n_clusters, cluster.inertia_)
+    #     cluster_loss_48h.append(cluster.inertia_)
+    #     cluster = KMeans(n_clusters=n_clusters,random_state=0).fit(repost_vectors_24h)
+    #     cluster_loss_24h.append(cluster.inertia_)
+
     cluster = KMeans(n_clusters=n_clusters,random_state=0).fit(repost_vectors_24h)
-    cluster_loss_24h.append(cluster.inertia_)
+
+    return cluster
 
 
-plt.plot(x, cluster_loss_24h)
-plt.xlabel("Cluster Num")
-plt.ylabel("Cluster Loss")
-plt.title("24h time series cluster result")
-plt.savefig("LOG24h.png" if LOG else "24h.png")
-plt.clf()
-plt.plot(x, cluster_loss_48h)
-plt.xlabel("Cluster Num")
-plt.ylabel("Cluster Loss")
-plt.title("48h time series cluster result")
-plt.savefig("LOG48h.png" if LOG else "48h.png")
-plt.clf()
+# plt.plot(x, cluster_loss_24h)
+# plt.xlabel("Cluster Num")
+# plt.ylabel("Cluster Loss")
+# plt.title("24h time series cluster result")
+# plt.savefig("LOG24h.png" if LOG else "24h.png")
+# plt.clf()
+# plt.plot(x, cluster_loss_48h)
+# plt.xlabel("Cluster Num")
+# plt.ylabel("Cluster Loss")
+# plt.title("48h time series cluster result")
+# plt.savefig("LOG48h.png" if LOG else "48h.png")
+# plt.clf()
