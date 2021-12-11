@@ -62,7 +62,7 @@ def run(args, config):
     logging.info(getTime() + '本次最优结果：%.4f' % best_score)
 
     model.load_state_dict(torch.load(args.model_save_path))
-    test_results = train.do_test(model=model, dataloader=test_loader, mode="TEST")
+    test_results, pred, true = train.do_test(model=model, dataloader=test_loader, mode="TEST")
 
     return test_results
 
@@ -124,8 +124,8 @@ def run_task(args, seeds, configure):
     mean, std = round(np.mean(result), 2), round(np.std(result), 2)
     logging.info('本轮效果均值：%f, 标准差：%f' % (mean, std))
 
-    save_path = os.path.join(args.res_save_dir,
-                            f'results.csv')
+    mode = "tune" if args.tune else "reg"
+    save_path = os.path.join(args.res_save_dir, f'{args.modelName}_{mode}_results.csv')
     if not os.path.exists(args.res_save_dir):
         os.makedirs(args.res_save_dir)
     if os.path.exists(save_path):
