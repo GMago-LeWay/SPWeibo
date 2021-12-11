@@ -1,6 +1,7 @@
 .vscode
 __pycache__
 data
+raw_data
 images*
 pretrained_model
 repost_data

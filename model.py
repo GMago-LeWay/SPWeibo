@@ -23,7 +23,7 @@ class BaseModel(torch.nn.Module):
 
 class SPWRNN(torch.nn.Module):
     def __init__(self, config, args) -> None:
-        super(SPW, self).__init__()
+        super(SPWRNN, self).__init__()
         self.config = config
         self.args = args
         self.language_model = BaseModel(self.config.pretrained_model)
@@ -38,8 +38,8 @@ class SPWRNN(torch.nn.Module):
 
     def forward(self, text, dec_input):
         text_representation = self.language_model(text['input_ids'], text['attention_mask'])
-        initial_hidden_state = text_representation.unsqueeze(1)
-        prediction, (_, _) = self.predict_model(dec_input, (initial_hidden_state, torch.zeros_like(initial_hidden_state)))
+        initial_state = text_representation.unsqueeze(0)
+        prediction, (_, _) = self.predict_model(dec_input, (torch.zeros((1, text_representation.shape[0], 1)).to(self.args.device), initial_state))
 
         return prediction
 

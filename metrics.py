@@ -10,6 +10,7 @@ class Metrics():
         self.metrics_dict = {
             'match': self._eval_binary,
             'spw': self._eval_regression,
+            'spwrnn': self._eval_regression,
         }
     
     def get_metrics(self, modelName):

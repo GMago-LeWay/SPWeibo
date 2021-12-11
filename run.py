@@ -34,11 +34,11 @@ def parse_args():
                         help='path to save results.')
     parser.add_argument('--res_save_dir', type=str, default='results/results',
                         help='path to save results.')
-    parser.add_argument('--device', type=int, default=1,
+    parser.add_argument('--device', type=int, default=3,
                         help='GPU id.')
     parser.add_argument('--tune', type=bool, default=False,
                         help='True if run tune task.')
-    parser.add_argument('--infer', type=bool, default=True,
+    parser.add_argument('--infer', type=bool, default=False,
                         help='True if run infer task.')
     parser.add_argument('--load', type=str, default='results/models/spw.pth',
                         help='model to be loaded in infer task.')
@@ -170,14 +170,17 @@ if __name__ == '__main__':
     args = parse_args()
     if not os.path.exists('log'):
         os.makedirs('log')
-    logging.basicConfig(filename=f'log/{args.modelName}.log', level=logging.INFO)
+    file_name = f'log/{args.modelName}_tune.log' if args.tune else f'log/{args.modelName}_reg.log'
+    logging.basicConfig(filename=file_name, level=logging.INFO)
     args.device = 'cuda:'+ str(args.device)
     if args.infer:
         configure = Config(modelName=args.modelName).get_config()
         run_eval(args=args, config=configure)
     elif not args.tune:
+        args.model_save_dir = os.path.join(args.model_save_dir, 'regression')
         configure = Config(modelName=args.modelName).get_config()
         run_task(args=args, seeds=[11111], configure=configure)
     else:
+        args.model_save_dir = os.path.join(args.model_save_dir, 'tune')
         run_tune(args=args, seeds=[111, 1111, 11111], tune_times=100)
 

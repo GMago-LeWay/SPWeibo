@@ -25,7 +25,20 @@ class WeiboData(Dataset):
 
         assert len(sequence) == len(texts), "length is not consisitent."
 
-        return [[texts[i], sequence[i]] for i in range(len(texts))]
+        # TODO: Label Prompt
+        labels = []
+        pattern = '[SEP]<T>[SEP]'
+        def add_label_prompt(string, label):
+            prompt = pattern.replace('<T>', label)
+            return prompt + string
+
+        def add(array):
+            new_array = np.zeros_like(array)
+            for i in range(len(array)):
+                new_array[i] = np.sum(array[:i+1])
+            return new_array
+        
+        return [[texts[i], add(sequence[i])] for i in range(len(texts))]
 
     def get_train_val_dataloader(self):
         gross_data = self.get_data()
@@ -64,7 +77,20 @@ class WeiboDataTimeSeries(Dataset):
 
         assert len(sequence) == len(texts), "length is not consisitent."
 
-        return [[texts[i], sequence[i]] for i in range(len(texts))]
+        # TODO: Label Prompt
+        labels = []
+        pattern = '[SEP]<T>[SEP]'
+        def add_label_prompt(string, label):
+            prompt = pattern.replace('<T>', label)
+            return prompt + string
+
+        def add(array):
+            new_array = np.zeros_like(array)
+            for i in range(len(array)):
+                new_array[i] = np.sum(array[:i+1])
+            return new_array
+        
+        return [[texts[i], add(sequence[i])] for i in range(len(texts))]
 
     def get_train_val_dataloader(self):
         gross_data = self.get_data()
@@ -87,7 +113,7 @@ class WeiboDataTimeSeries(Dataset):
             labels = torch.log(torch.FloatTensor([batch[i][1] + 1. for i in range(batch_size)]))
 
             decoder_input = torch.zeros((batch_size, 1, 1))
-            decoder_inputs = torch.cat([decoder_input, labels[:, :-1].unsqueeze(1)], dim=1)
+            decoder_inputs = torch.cat([decoder_input, labels[:, :-1].unsqueeze(-1)], dim=1)
             texts = self.tokenizer(texts, padding=True, truncation=True, max_length=self.config.text_cut, return_tensors="pt")
             return {'texts': texts, 'labels': labels, 'dec_inputs': decoder_inputs}
         return collate_fn

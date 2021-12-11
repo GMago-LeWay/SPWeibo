@@ -89,7 +89,7 @@ class SPW():
                                     epochs, valid_num - best_valid_num, valid_num, train_loss_avg, dict_to_str(train_results)))
 
                         # validation
-                        val_results = self.do_test(model, val_dataloader, mode="VAL")
+                        val_results, _, _ = self.do_test(model, val_dataloader, mode="VAL")
                         cur_valid = val_results[self.config.KeyEval]
                         # scheduler step
                         scheduler.step(cur_valid)
@@ -195,7 +195,8 @@ class SPWRNN():
                     # clear gradient
                     optimizer.zero_grad()
                     # forward
-                    outputs = model(text=texts)
+                    outputs = model(text=texts, dec_input=dec_inputs)
+                    outputs = outputs.squeeze(-1)
                     # compute loss
                     loss = self.criterion(outputs, labels)
                     # backward
@@ -219,7 +220,7 @@ class SPWRNN():
                                     epochs, valid_num - best_valid_num, valid_num, train_loss_avg, dict_to_str(train_results)))
 
                         # validation
-                        val_results = self.do_test(model, val_dataloader, mode="VAL")
+                        val_results, _, _ = self.do_test(model, val_dataloader, mode="VAL")
                         cur_valid = val_results[self.config.KeyEval]
                         # scheduler step
                         scheduler.step(cur_valid)
@@ -248,16 +249,18 @@ class SPWRNN():
                     labels = batch_data['labels'].to(self.args.device)
                     texts = batch_data['texts'].to(self.args.device)
                     dec_inputs = batch_data['dec_inputs'].to(self.args.device)
-                    dec_inputs = dec_inputs[:, 0, :]
+                    dec_inputs = dec_inputs[:, 0:1, :]
                     
                     out_len = 0
                     outputs = []
                     # inference
                     while out_len < labels.shape[1]:
-                        new_prediction = model(text=texts, dec_input=dec_inputs)[:, -1, :]
+                        new_prediction = model(text=texts, dec_input=dec_inputs)[:, -1:, :]
                         outputs.append(new_prediction)
                         dec_inputs = torch.cat([dec_inputs, new_prediction], dim=1)
-                    loss = self.criterion(torch.cat(outputs, dim=1), labels)
+                        out_len += 1
+                    outputs = torch.cat(outputs, dim=1).squeeze(-1)
+                    loss = self.criterion(outputs, labels)
                     eval_loss += loss.item()
                     y_pred.append(outputs.cpu())
                     y_true.append(labels.cpu())
@@ -280,9 +283,10 @@ class SPWRNN():
                 out_len = 0
                 outputs = []
                 while out_len < self.config.seq_dim:
-                    new_prediction = model(text=texts, dec_input=dec_inputs)[:, -1, :]
+                    new_prediction = model(text=texts, dec_input=dec_inputs)[:, -1:, :]
                     outputs.append(new_prediction)
                     dec_inputs = torch.cat([dec_inputs, new_prediction], dim=1)
+                    out_len += 1
                 outputs = torch.cat(outputs, dim=1)
                 y_pred.append(outputs.cpu())
         predictions = torch.cat(y_pred)
@@ -292,6 +296,7 @@ class SPWRNN():
 def getTrain(modelName):
     TRAIN_MAP = {
         'spw': SPW,
+        'spwrnn': SPWRNN,
     }
 
     assert modelName in TRAIN_MAP.keys(), 'Not support ' + modelName
