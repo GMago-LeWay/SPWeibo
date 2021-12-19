@@ -59,7 +59,7 @@ def proc_query(collection, query, args):
     res = collection.find(query, query_fields)
     repo_num = 0
     with open(repost_file, "w", encoding=args.encoding) as f_rec:
-        f_rec.write(''.join(args.fields))
+        f_rec.write(','.join(args.fields) + '\n')
 
         for doc in tqdm(res):
             if doc["OriTxt"] in content_map:
