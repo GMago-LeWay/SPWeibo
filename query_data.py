@@ -24,7 +24,8 @@ def get_args():
         help="Path to save dumped results.")
     parser.add_argument("--dump_name", "-n", type=str, default="query_res",
         help="Name of the query result files.")
-    parser.add_argument("--fields", "-f", type=str, nargs="+", default=["Time", "OriAuthor", "OriTxt"],
+    parser.add_argument("--fields", "-f", type=str, nargs="+", default=["Time", "Verify", "Area",
+                        "Sex", "City", "OriAuthor", "OriTxt"],
         help="Fields to be saved. OriTxt must be included.")
     parser.add_argument("--encoding", type=str, default="gb18030")
     
@@ -58,7 +59,7 @@ def proc_query(collection, query, args):
     res = collection.find(query, query_fields)
     repo_num = 0
     with open(repost_file, "w", encoding=args.encoding) as f_rec:
-        f_rec.write(''.join(args.fields))
+        f_rec.write(','.join(args.fields) + '\n')
 
         for doc in tqdm(res):
             if doc["OriTxt"] in content_map:

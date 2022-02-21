@@ -30,6 +30,8 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--modelName', type=str, default='spw',
                         help='spw')    
+    parser.add_argument('--dataset', type=str, default='renminribao',
+                        help='weibo dataset name')  
     parser.add_argument('--model_save_dir', type=str, default='results/models',
                         help='path to save results.')
     parser.add_argument('--res_save_dir', type=str, default='results/results',
@@ -152,7 +154,7 @@ def run_tune(args, seeds, tune_times=50):
                 has_debuged.append(df.loc[j, "Config"])
 
         setup_seed(int(time.time()))              # 随机选取种子以初始化随机的config
-        config = Config(args.modelName, tune=True).get_config()
+        config = Config(args.modelName, args.dataset, tune=True).get_config()
 
         if str(config) in has_debuged:
             logging.info(getTime() + '该参数已经被搜索过.')
@@ -174,11 +176,11 @@ if __name__ == '__main__':
     logging.basicConfig(filename=file_name, level=logging.INFO)
     args.device = 'cuda:'+ str(args.device)
     if args.infer:
-        configure = Config(modelName=args.modelName).get_config()
+        configure = Config(modelName=args.modelName, dataset=args.dataset).get_config()
         run_eval(args=args, config=configure)
     elif not args.tune:
         args.model_save_dir = os.path.join(args.model_save_dir, 'regression')
-        configure = Config(modelName=args.modelName).get_config()
+        configure = Config(modelName=args.modelName, dataset=args.dataset).get_config()
         run_task(args=args, seeds=[11111], configure=configure)
     else:
         args.model_save_dir = os.path.join(args.model_save_dir, 'tune')

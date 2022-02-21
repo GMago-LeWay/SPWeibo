@@ -7,9 +7,21 @@ import matplotlib.pyplot as plt
 import numpy as np
 from torch.utils.data import Dataset, DataLoader, random_split
 from transformers import AutoTokenizer
+import os
 
 from config import Config
 from utils import getTime
+
+
+def get_time_series(self, data_list, start, end, width, lambda_expression=None):
+    if lambda_expression:
+        example = [lambda_expression(item) for item in data_list]
+    else:
+        example = data_list
+    hist_range = np.arange(start, int(end + 1), width)
+    frequency_each,_,_= plt.hist(example, hist_range, color='red', width=width, alpha=0.7)  #alpha设置透明度，0为完全透明
+    plt.clf()
+    return frequency_each
 
 
 class WeiboData(Dataset):
@@ -70,6 +82,22 @@ class WeiboDataTimeSeries(Dataset):
         self.config = config
         self.args = args
 
+    def data_filter(self):
+        repost_dir = os.path.join(self.config.data_dir, "repost_data")
+        content_df = pd.read_csv(os.path.join(self.config.data_dir, "content.csv"))
+        texts = content_df['content'].to_list()
+        repost_nums = content_df['repost_num'].to_list()
+        legal_weibo_idx = []
+        for i in range(len(repost_nums)):
+            if repost_nums[i] < self.config.min_repost:
+                continue
+            else:
+                legal_weibo_idx.append(i)
+        for idx in legal_weibo_idx:
+            csv_file = os.path.join(repost_dir, f"{idx}.csv")
+            repost_time = pd.read_csv(csv_file).tolist()
+            
+
     def get_data(self):
         sequence = np.load('data/%d.npy' % self.config.seq_dim)
         content_csv = pd.read_csv('data/%d.csv' % self.config.seq_dim)
@@ -110,6 +138,8 @@ class WeiboDataTimeSeries(Dataset):
         def collate_fn(batch):
             batch_size = len(batch)
             texts = [batch[i][0] for i in range(batch_size)]
+
+            # normalization
             labels = torch.log(torch.FloatTensor([batch[i][1] + 1. for i in range(batch_size)]))
 
             decoder_input = torch.zeros((batch_size, 1, 1))
@@ -131,7 +161,7 @@ def getData(modelName):
 
 
 if __name__ == "__main__":
-    data = WeiboData(config=Config('SPW').get_config())
+    data = WeiboData(config=Config('spwrnn', 'reminribao').get_config())
     train_loader, val_loader = data.get_train_val_dataset()
     for batch in train_loader:
         print(batch)

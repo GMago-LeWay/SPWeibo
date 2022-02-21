@@ -4,7 +4,7 @@ import warnings
 
 
 class Config:
-    def __init__(self, modelName, tune=False) -> None:
+    def __init__(self, modelName, dataset, tune=False) -> None:
         self.modelName = modelName
 
         MODEL_MAP = {
@@ -12,8 +12,14 @@ class Config:
             'spwrnn': self.__SPWRNN,
         }
 
+        DATA_MAP = {
+            'renminribao': self.__RMRB,
+        }
+
         commonArgs = MODEL_MAP[modelName](tune)
-        self.args = Storage(dict(commonArgs))
+        dataArgs = DATA_MAP[dataset]()
+
+        self.args = Storage({**commonArgs, **dataArgs})
 
 
     def solve_conflict(self):
@@ -23,6 +29,27 @@ class Config:
     def get_config(self):
         self.solve_conflict()
         return self.args
+
+    def __RMRB(self):
+
+        dataConfig = {
+            # 数据载入
+            'data_dir': "/home/disk/disk2/lw/covid-19-weibo-processed/renminribao",
+
+            'interval': 600,        # 计数时间间隔 600, 900, 1200, 1800, 3600s
+            'min_repost': 100,      # 最低转发次数
+            'observe_seq': [0, 1*3600, 2*3600, 3*3600, 4*3600, 5*3600, 6*3600],  # 观察时间长度
+            'test_point': 24*3600,    # 预测时间长度
+            'max_seq_len': 256,     # 模型最大长度
+
+            # 数据集设置
+            'validate': 0.15,
+            'test': 0.1,
+            'batch_size': 32,
+            'text_cut': 200,       # 文本截断长度
+        }
+
+        return dataConfig
 
     def __SPW(self, tune):
 
@@ -35,13 +62,6 @@ class Config:
 
             # 模型设置
             'use_prompt': False,
-
-            # 数据集设置
-            'seq_dim': 24,
-            'validate': 0.15,
-            'test': 0.1,
-            'batch_size': 32,
-            'text_cut': 200,       # 文本截断长度
 
             # 学习参数设置
             'max_epochs': 50,
@@ -65,13 +85,6 @@ class Config:
             'pretrained_model': 'pretrained_model/chinese-roberta-wwm-ext',
 
             # 模型设置
-
-            # 数据集设置
-            'seq_dim': 24,
-            'validate': 0.15,
-            'test': 0.1,
-            'batch_size': 32,
-            'text_cut': 200,       # 文本截断长度
 
             # 评估设置
             'KeyEval': 'Loss',
@@ -103,12 +116,6 @@ class Config:
             # 模型设置
             'use_prompt': False,
 
-            # 数据集设置
-            'seq_dim': 24,
-            'validate': 0.15,
-            'test': 0.1,
-            'batch_size': 32,
-            'text_cut': 200,       # 文本截断长度
 
             # 学习参数设置
             'max_epochs': 50,
@@ -132,13 +139,6 @@ class Config:
             'pretrained_model': 'pretrained_model/chinese-roberta-wwm-ext',
 
             # 模型设置
-
-            # 数据集设置
-            'seq_dim': 24,
-            'validate': 0.15,
-            'test': 0.1,
-            'batch_size': 32,
-            'text_cut': 200,       # 文本截断长度
 
             # 评估设置
             'KeyEval': 'Loss',
