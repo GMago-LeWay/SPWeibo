@@ -38,8 +38,8 @@ class Config:
 
             'interval': 600,        # 计数时间间隔 600, 900, 1200, 1800, 3600s
             'min_repost': 100,      # 最低转发次数
-            'observe_seq': [0, 1*3600, 2*3600, 3*3600, 4*3600, 5*3600, 6*3600],  # 观察时间长度
-            'test_point': 24*3600,    # 预测时间长度
+            'observe_time': [0, 1*3600, 2*3600, 3*3600, 4*3600, 5*3600, 6*3600],  # 观察时间长度
+            'valid_time': 24*3600,    # 预测时间长度
             'max_seq_len': 256,     # 模型最大长度
 
             # 数据集设置
@@ -72,7 +72,7 @@ class Config:
             'early_stop': 8,
 
             # 评估设置
-            'KeyEval': 'Loss',
+            'KeyEval': '3.0h_Loss',
             'eval_step': None,        # eval间隔的step数, None表示1eval/epoch
         }
 
@@ -108,14 +108,14 @@ class Config:
 
         Config = {
             # 标识符
-            'name': 'SPW',
+            'name': 'SPWRNN',
 
             # 预训练模型设置
             'pretrained_model': 'pretrained_model/chinese-roberta-wwm-ext',
 
             # 模型设置
-            'use_prompt': False,
-
+            # 'use_prompt': False,
+            'hidden_size': 128,
 
             # 学习参数设置
             'max_epochs': 50,
@@ -133,7 +133,7 @@ class Config:
         TuneConfig = {     
             # 不变参数
             # 标识符
-            'name': 'SPW',
+            'name': 'SPWRNN',
 
             # 预训练模型设置
             'pretrained_model': 'pretrained_model/chinese-roberta-wwm-ext',

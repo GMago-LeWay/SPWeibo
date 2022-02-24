@@ -241,38 +241,49 @@ class SPWRNN():
 
     def do_test(self, model, dataloader, mode="VAL"):
         model.eval()
-        y_pred, y_true = [], []
-        eval_loss = 0.0
-        with torch.no_grad():
-            with tqdm(dataloader) as td:
-                for batch_data in td:
-                    labels = batch_data['labels'].to(self.args.device)
-                    texts = batch_data['texts'].to(self.args.device)
-                    dec_inputs = batch_data['dec_inputs'].to(self.args.device)
-                    dec_inputs = dec_inputs[:, 0:1, :]
-                    
-                    out_len = 0
-                    outputs = []
-                    # inference
-                    while out_len < labels.shape[1]:
-                        new_prediction = model(text=texts, dec_input=dec_inputs)[:, -1:, :]
-                        outputs.append(new_prediction)
-                        dec_inputs = torch.cat([dec_inputs, new_prediction], dim=1)
-                        out_len += 1
-                    outputs = torch.cat(outputs, dim=1).squeeze(-1)
-                    loss = self.criterion(outputs, labels)
-                    eval_loss += loss.item()
-                    y_pred.append(outputs.cpu())
-                    y_true.append(labels.cpu())
-        eval_loss = eval_loss / len(dataloader)
-        pred, true = torch.cat(y_pred), torch.cat(y_true)
-        eval_results = self.metrics(pred, true)
-        eval_results["Loss"] = round(eval_loss, 4)
+        gross_eval_results = {}
+        for observe_time in self.config.observe_time:
+            y_pred, y_true = [], []
+            eval_loss = 0.0
+            with torch.no_grad():
+                with tqdm(dataloader) as td:
+                    for batch_data in td:
+                        labels = batch_data['labels'].to(self.args.device)
+                        texts = batch_data['texts'].to(self.args.device)
+                        dec_inputs = batch_data['dec_inputs'].to(self.args.device)
+                        # calc observing steps
+                        steps = int(observe_time / self.config.interval)
+                        dec_inputs = dec_inputs[:, 0:steps+1, :]
+                        
+                        out_len = steps
+                        outputs = []
+                        # inference
+                        while out_len < labels.shape[1]:
+                            new_prediction = model(text=texts, dec_input=dec_inputs)[:, -1:, :]
+                            outputs.append(new_prediction)
+                            dec_inputs = torch.cat([dec_inputs, new_prediction], dim=1)
+                            out_len += 1
+                        outputs = torch.cat(outputs, dim=1).squeeze(-1)
+                        loss = self.criterion(outputs, labels)
+                        eval_loss += loss.item()
+                        y_pred.append(outputs.cpu())
+                        y_true.append(labels.cpu())
+                eval_loss = eval_loss / len(dataloader)
+                pred, true = torch.cat(y_pred), torch.cat(y_true)
+                eval_results = self.metrics(pred, true)
+                eval_results["Loss"] = round(eval_loss, 4)
+
+                # merge results
+                hours_prefix = str(observe_time/3600) + 'h_'
+                for key in eval_results:
+                    gross_eval_results[hours_prefix+key] = eval_results[key]
+
 
         logging.info("%s-(%s) >> %s" % (mode, self.args.modelName, dict_to_str(eval_results)))
-        return eval_results, pred, true
+        return gross_eval_results, pred, true
 
     def do_infer(self, model, dataloader):
+        # for new weibo without any repost number
         model.eval()
         y_pred = []
         with torch.no_grad():

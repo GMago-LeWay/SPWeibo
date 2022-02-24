@@ -16,7 +16,7 @@ from utils import getTime
 from data import getData
 from model import getModel
 from config import Config
-from statistics import getKmeans
+from statistics import getKmeans, mean
 
 
 def setup_seed(seed):
@@ -108,35 +108,54 @@ def run_eval(args, config):
     return results
 
 
-def run_task(args, seeds, configure):
+def run_task(args, seeds, config):
     logging.info('************************************************************')
-    logging.info(getTime() + '本轮参数：' + str(configure))
+    logging.info(getTime() + '本轮参数：' + str(config))
     logging.info(getTime() + '本轮Args：' + str(args))
 
-    result = []
+    result = {}
 
     for seed in seeds:
         setup_seed(seed)
         # 每个种子训练开始
         logging.info(getTime() + 'Seed：%d 训练开始' % seed)      
-        current_res = run(args, configure)
-        result.append(current_res[configure.KeyEval])
+        current_res = run(args, config)
+        result.append(current_res[config.KeyEval])
+        if not result:
+            for key in current_res:
+                result[key] = [current_res[key]]
+        else:
+            for key in current_res:
+                result[key].append(current_res[key])
 
     # 保存实验结果
-    mean, std = round(np.mean(result), 2), round(np.std(result), 2)
-    logging.info('本轮效果均值：%f, 标准差：%f' % (mean, std))
+    for key in result:            
+        mean, std = round(np.mean(result[key]), 2), round(np.std(result[key]), 2)
+        result[key] = mean
+        result[key + '-std'] = std
+    for key in config:
+        result[key] = config[key]
+    result['Args'] = args
+    result['Config'] = config
 
-    mode = "tune" if args.tune else "reg"
-    save_path = os.path.join(args.res_save_dir, f'{args.modelName}_{mode}_results.csv')
+    logging.info('本轮效果均值：%f, 标准差：%f' % (result[config.KeyEval], result[config.KeyEval + '-std']))
+
+    mode = "tune" if args.tune else "single"
+    save_path = os.path.join(args.res_save_dir, f'{args.modelName}-{args.dataset}-{mode}.csv')
     if not os.path.exists(args.res_save_dir):
         os.makedirs(args.res_save_dir)
     if os.path.exists(save_path):
         df = pd.read_csv(save_path)
+        columns = set(df.columns)
+        if set(result.keys()) == columns:       # 如果与已检测到的结果文件格式相符，直接保存
+            df.append(result, ignore_index=True)
+        else:  # 如果格式不符，另存一个文件
+            df = pd.DataFrame(result)
+            save_path = save_path[:-4] + "new.csv" 
+            logging.info('Warning: 结果格式不符，另存一个新文件.')
     else:
-        df = pd.DataFrame(columns=["Model", "ValidateAvg", "ValidateStd", "Args", "Config"])
+        df = pd.DataFrame(result)
    
-    res = [args.modelName, mean, std, str(args), str(configure)]
-    df.loc[len(df)] = res
     df.to_csv(save_path, index=None)
     logging.info('Results are added to %s...' % (save_path))
     logging.info('************************************************************')
@@ -147,7 +166,7 @@ def run_tune(args, seeds, tune_times=50):
     for i in range(tune_times):
         logging.info('-----------------------------------Tune(%d/%d)----------------------------' % (i+1, tune_times))
         # 加载之前的结果参数以去重
-        save_path = os.path.join(args.res_save_dir, f'results.csv')
+        save_path = os.path.join(args.res_save_dir, f'{args.modelName}-{args.dataset}-tune.csv')
         if i == 0 and os.path.exists(save_path):
             df = pd.read_csv(save_path)
             for j in range(len(df)):
@@ -162,7 +181,7 @@ def run_tune(args, seeds, tune_times=50):
             continue
 
         try:
-            run_task(args=args, seeds=seeds, configure=config)
+            run_task(args=args, seeds=seeds, config=config)
             has_debuged.append(str(config))
         except Exception as e:
             logging.info(getTime() + '运行时发生错误. ' + str(e))
@@ -181,7 +200,7 @@ if __name__ == '__main__':
     elif not args.tune:
         args.model_save_dir = os.path.join(args.model_save_dir, 'regression')
         configure = Config(modelName=args.modelName, dataset=args.dataset).get_config()
-        run_task(args=args, seeds=[11111], configure=configure)
+        run_task(args=args, seeds=[11111], config=configure)
     else:
         args.model_save_dir = os.path.join(args.model_save_dir, 'tune')
         run_tune(args=args, seeds=[111, 1111, 11111], tune_times=100)

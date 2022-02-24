@@ -32,9 +32,8 @@ class SPWRNN(torch.nn.Module):
 
         self.predict_model = torch.nn.LSTM(
             input_size=1,
-            hidden_size=self.language_model_config.hidden_size,
+            hidden_size=self.config.hidden_size,
             batch_first=True,
-            proj_size=1,
         )
 
     def forward(self, text, dec_input):
