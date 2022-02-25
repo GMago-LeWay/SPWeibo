@@ -66,7 +66,7 @@ class TopicExtractor:
             for i, word in enumerate(topic_):
                 topic_df[str(i)].append(word[0])
                 topic_df[str(i) + "_prob"].append(word[1])
-        topic_df.to_csv(self.topic_file, index=None)
+        pd.DataFrame(topic_df).to_csv(self.topic_file, index=None)
 
         # save topics of contents
         content_topics = []
@@ -75,7 +75,7 @@ class TopicExtractor:
             similar_topics, similarity = topic_model.find_topics(docs[i], top_n=topn)
             # print(similar_topics)
             content_topics.append(similar_topics)
-        columns = [str(i) for i in range(topn)]
+        columns = [f'topic{i}' for i in range(topn)]
         pd.DataFrame(content_topics, columns=columns).to_csv(self.content_topic_file, index=None)
 
 
