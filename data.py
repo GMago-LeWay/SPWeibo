@@ -8,6 +8,7 @@ import numpy as np
 from torch.utils.data import Dataset, DataLoader, random_split
 from transformers import AutoTokenizer
 import os
+import pickle
 
 from config import Config
 from utils import getTime
@@ -113,7 +114,24 @@ class WeiboDataTimeSeries(Dataset):
             legal_weibo_time_series.append(repost_time_series)
 
         return legal_weibo, np.array(legal_weibo_time_series), legal_weibo_idx
-            
+
+
+    def get_topics_and_embedding(self, legal_weibo_idx):
+        topic_file = os.path.join(self.config.data_dir, "topic.pkl")
+        content_topic_file = os.path.join(self.config.data_dir, "content_topic.csv")
+
+        # Load topic class and embeddings, from class -1 to last topic
+        with open(topic_file, 'rb') as f:
+            topics = pickle.load(f, encoding='utf-8')
+
+        # Load first topic for every weibo.
+        df = pd.read_csv(content_topic_file)
+        weibo_topic0 = df["topic0"].tolist()
+        legal_weibo_topic0 = [weibo_topic0[idx] for idx in legal_weibo_idx]
+        legal_weibo_topic0_embeddings = [topics[t]["embedding"] for t in legal_weibo_topic0]
+
+        return legal_weibo_topic0, legal_weibo_topic0_embeddings
+
 
     def get_data(self):
         texts, sequences, _ = self.get_series_and_texts()

@@ -5,6 +5,7 @@ import os
 from umap import UMAP
 from bertopic import BERTopic
 import jieba
+import pickle
 
 
 class TopicExtractor:
@@ -14,7 +15,7 @@ class TopicExtractor:
         """
         self.data_dir = data_dir
         self.csv_file = os.path.join(data_dir, "content.csv")
-        self.topic_file = os.path.join(data_dir, "topic.csv")
+        self.topic_file = os.path.join(data_dir, "topic.pkl")
         self.content_topic_file = os.path.join(data_dir, "content_topic.csv")
 
     def extract(self, topic_num=None, random_seed=1000):
@@ -56,17 +57,15 @@ class TopicExtractor:
         print(topic_model.get_topic(0))
 
         # save topic file
-        topic_df = {"id": freq["Topic"].tolist(), "count": freq["Count"].tolist()}
-        for i in range(10):
-            topic_df[str(i)] = []
-            topic_df[str(i) + "_prob"] = []
-        for topic_id in topic_df["id"]:
+        topic_list = {}
+        for topic_id in freq["Topic"].tolist():
             topic_ = topic_model.get_topic(topic_id)
             assert len(topic_) == 10
-            for i, word in enumerate(topic_):
-                topic_df[str(i)].append(word[0])
-                topic_df[str(i) + "_prob"].append(word[1])
-        pd.DataFrame(topic_df).to_csv(self.topic_file, index=None)
+            topic_list[topic_id] = {"words": [word[0] for word in topic_], 
+                "words_prob": np.array([word[1] for word in topic_]),
+                "embedding": np.array(topic_model.topic_embeddings[topic_id+1])}
+        with open(self.topic_file, 'wb') as f:
+            pickle.dump(topic_list, f)
 
         # save topics of contents
         content_topics = []
