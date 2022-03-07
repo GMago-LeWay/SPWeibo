@@ -85,23 +85,6 @@ class SPWRNN(torch.nn.Module):
         return final_prediction
 
 
-class SPW(torch.nn.Module):
-    def __init__(self, config, args) -> None:
-        super(SPW, self).__init__()
-        self.config = config
-        self.args = args
-        self.language_model = BaseModel(self.config.pretrained_model)
-        self.language_model_config = AutoConfig.from_pretrained(self.config.pretrained_model)
-
-        self.predict_model = torch.nn.Linear(self.language_model_config.hidden_size, self.config.seq_dim)
-
-    def forward(self, text):
-        text_representation = self.language_model(text['input_ids'], text['attention_mask'])
-        prediction = self.predict_model(text_representation)
-
-        return prediction
-
-
 class RNN(torch.nn.Module):
     def __init__(self, config, args) -> None:
         super(RNN, self).__init__()
@@ -203,7 +186,6 @@ class TCN(torch.nn.Module):
 
 def getModel(modelName):
     MODEL_MAP = {
-        'spw': SPW,
         'rnn': RNN,
         'tcn': TCN,
         'spwrnn': SPWRNN,
