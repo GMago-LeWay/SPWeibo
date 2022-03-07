@@ -33,6 +33,7 @@ class Metrics():
 
         eval_results = {
             "mse": round(mean_squared_error(y_true=y_true, y_pred=y_pred), 4),
+            "mse_last": round(mean_squared_error(y_true=y_true[:, -1:], y_pred=y_pred[:, -1:]), 4),
         }
         return eval_results        
 

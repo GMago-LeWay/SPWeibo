@@ -191,11 +191,13 @@ class SPWRNN():
                     labels = batch_data['labels'].to(self.args.device)
                     texts = batch_data['texts'].to(self.args.device)
                     dec_inputs = batch_data['dec_inputs'].to(self.args.device)
+                    for key in batch_data['others']:
+                        batch_data['others'][key].to(self.args.device)
                     
                     # clear gradient
                     optimizer.zero_grad()
                     # forward
-                    outputs = model(text=texts, dec_input=dec_inputs)
+                    outputs = model(text=texts, dec_input=dec_inputs, others=batch_data['others'])
                     outputs = outputs.squeeze(-1)
                     # compute loss
                     loss = self.criterion(outputs, labels)
@@ -251,6 +253,8 @@ class SPWRNN():
                         labels = batch_data['labels'].to(self.args.device)
                         texts = batch_data['texts'].to(self.args.device)
                         dec_inputs = batch_data['dec_inputs'].to(self.args.device)
+                        for key in batch_data['others']:
+                            batch_data['others'][key].to(self.args.device)
                         # calc observing steps
                         steps = int(observe_time / self.config.interval)
                         dec_inputs = dec_inputs[:, 0:steps+1, :]
@@ -259,7 +263,7 @@ class SPWRNN():
                         outputs = []
                         # inference
                         while out_len < labels.shape[1]:
-                            new_prediction = model(text=texts, dec_input=dec_inputs)[:, -1:, :]
+                            new_prediction = model(text=texts, dec_input=dec_inputs, others=batch_data['others'])[:, -1:, :]
                             outputs.append(new_prediction)
                             dec_inputs = torch.cat([dec_inputs, new_prediction], dim=1)
                             out_len += 1
@@ -270,6 +274,9 @@ class SPWRNN():
                         y_true.append(labels.cpu())
                 eval_loss = eval_loss / len(dataloader)
                 pred, true = torch.cat(y_pred), torch.cat(y_true)
+                # clip predicted part of results for metric calc
+                pred, true = pred[:, steps:], true[:, steps:]
+                # metric calc
                 eval_results = self.metrics(pred, true)
                 eval_results["Loss"] = round(eval_loss, 4)
 
@@ -290,11 +297,13 @@ class SPWRNN():
             for batch_data in dataloader:
                 texts = batch_data['texts'].to(self.args.device)
                 dec_inputs = torch.zeros((texts.shape[0], 1, 1)).to(self.args.device)
+                for key in batch_data['others']:
+                    batch_data['others'][key].to(self.args.device)
                 # inference
                 out_len = 0
                 outputs = []
                 while out_len < self.config.seq_dim:
-                    new_prediction = model(text=texts, dec_input=dec_inputs)[:, -1:, :]
+                    new_prediction = model(text=texts, dec_input=dec_inputs, others=batch_data['others'])[:, -1:, :]
                     outputs.append(new_prediction)
                     dec_inputs = torch.cat([dec_inputs, new_prediction], dim=1)
                     out_len += 1
@@ -307,6 +316,7 @@ class SPWRNN():
 def getTrain(modelName):
     TRAIN_MAP = {
         'spw': SPW,
+        'rnn': SPWRNN,
         'spwrnn': SPWRNN,
     }
 

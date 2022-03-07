@@ -29,6 +29,7 @@ class SPWRNN(torch.nn.Module):
         self.args = args
         self.language_model = BaseModel(self.config.pretrained_model)
         self.language_model_config = AutoConfig.from_pretrained(self.config.pretrained_model)
+        self.language_hidden_size = self.language_model_config.hidden_size
 
         self.predict_model = torch.nn.LSTM(
             input_size=1,
@@ -36,12 +37,52 @@ class SPWRNN(torch.nn.Module):
             batch_first=True,
         )
 
-    def forward(self, text, dec_input):
-        text_representation = self.language_model(text['input_ids'], text['attention_mask'])
-        initial_state = text_representation.unsqueeze(0)
-        prediction, (_, _) = self.predict_model(dec_input, (torch.zeros((1, text_representation.shape[0], 1)).to(self.args.device), initial_state))
+        self.public_vector = torch.nn.Parameter(torch.randn((self.config.public_size)))
+        self.word_key = torch.nn.Linear(self.language_hidden_size, self.config.public_size)
+        self.softmax = torch.nn.Softmax(dim=1)
 
-        return prediction
+        fusion_input_dim = self.config.hidden_size + self.language_hidden_size + self.config.topic_size
+        if self.config.use_framing:
+            fusion_input_dim += self.config.framing_size 
+        self.fusion_fc = torch.nn.Linear(fusion_input_dim, 1)
+
+        self.time_factor_fc = torch.nn.Linear(3, 1)
+
+
+    def forward(self, text, dec_input, others):
+        text_representation = self.language_model(text['input_ids'], text['attention_mask'])
+        batch_size, text_len, text_dim = text_representation.shape
+
+        # extract text features
+        text_representation_ravel = text_representation.view(batch_size*text_len, -1)
+        key = self.word_key(text_representation_ravel)
+        scores = self.softmax(self.public_vector.unsqueeze(0) @ key).view(batch_size, text_len, -1)
+        scores = scores * text['attention_mask']
+        interest_semantic = (text_representation * scores).sum(d=-1)
+
+        # extract history features
+        history_features, (_, _) = self.predict_model(dec_input)
+
+        # extract abs time features
+        batch_size, time_len, time_dim = others['abs_time'].shape
+        abs_time = others['abs_time'].view(batch_size*time_len, -1)
+        time_factor = self.time_factor_fc(abs_time).view(batch_size, time_len)
+
+        # feature fusion for every timestamp and prediction
+        prediction = []
+        for i in range(time_len):
+            if self.config.use_framing:
+                features = [interest_semantic, history_features[:, i, :], others['topics']]
+            else:
+                features = [interest_semantic, history_features[:, i, :], others['topics'], others['framing']]
+            fused_features = torch.cat(features, dim=1)
+            prediction_i = self.fusion_fc(fused_features)
+            prediction.append(prediction_i)
+        
+        prediction = torch.cat(prediction, dim=1)
+        final_prediction = time_factor * prediction
+
+        return final_prediction
 
 
 class SPW(torch.nn.Module):
@@ -59,6 +100,28 @@ class SPW(torch.nn.Module):
         prediction = self.predict_model(text_representation)
 
         return prediction
+
+
+class RNN(torch.nn.Module):
+    def __init__(self, config, args) -> None:
+        super(RNN, self).__init__()
+        self.config = config
+        self.args = args
+        self.rnn_model = torch.nn.LSTM(
+            input_size=1,
+            hidden_size=self.config.hidden_size,
+            batch_first=True,
+            layer=self.config.layer,
+        )
+        self.predict_fc = torch.nn.Linear(self.config.hidden_size, 1)
+
+    def forward(self, text, dec_input, others=None):
+        representation, _ = self.rnn_model(dec_input)
+        batch_size, time_len, _ = representation.shape
+        representation = representation.view(batch_size*time_len, _)
+        predict = self.predict_fc(representation)
+
+        return predict.view(batch_size, time_len)
 
 
 class Chomp1d(nn.Module):
@@ -79,7 +142,7 @@ class TemporalBlock(nn.Module):
         self.relu1 = nn.ReLU()
         self.dropout1 = nn.Dropout(dropout)
 
-        self.conv2 = weight_norm(nn.Conv1d(n_outputs, n_outputs, kernel_size,
+        self.conv2 = weight_norm(nn.Conv1d(n_inputs, n_outputs, kernel_size,
                                            stride=stride, padding=padding, dilation=dilation))
         self.chomp2 = Chomp1d(padding)
         self.relu2 = nn.ReLU()
@@ -121,9 +184,28 @@ class TemporalConvNet(nn.Module):
         return self.network(x)
 
 
+class TCN(torch.nn.Module):
+    def __init__(self, config, args) -> None:
+        super(TCN, self).__init__()
+        self.config = config
+        self.args = args
+        self.tcn_model = TemporalConvNet(
+            num_inputs=1,
+            num_channels=[1] * config.layer,
+            kernel_size=config.kernel,
+            dropout=0.2,
+        )
+
+    def forward(self, text, dec_input, others=None):
+        out = self.tcn_model(dec_input)
+        return out
+
+
 def getModel(modelName):
     MODEL_MAP = {
         'spw': SPW,
+        'rnn': RNN,
+        'tcn': TCN,
         'spwrnn': SPWRNN,
     }
 

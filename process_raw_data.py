@@ -82,6 +82,8 @@ class Process:
         repost_time_std = []        # std repost time
 
         repost_time = []            # repost time lists of all weibo
+        publish_time = []           # publish time = min repost time, seconds
+        raw_publish_time = []               # the original time string
 
         for item in tqdm(self.json):
             content_len.append(len(item['original_content']))
@@ -90,10 +92,13 @@ class Process:
             temp_time_list = []
             min_time = 9999999
             max_time = 0
+            min_timestamp = ''
             for repost in item['reposts']:
                 item_repost_time = get_absolute_seconds(repost['repost_timestamp'])
                 temp_time_list.append(item_repost_time)
-                min_time = min(min_time, item_repost_time)
+                if item_repost_time < min_time:
+                    min_time = item_repost_time
+                    min_timestamp = repost['repost_timestamp']
                 max_time = max(max_time, item_repost_time)
             
             # assert time scale
@@ -105,12 +110,14 @@ class Process:
             repost_num.append(len(repost_time[-1]))
             repost_time_avg.append(np.mean(repost_time[-1]))
             repost_time_std.append(np.std(repost_time[-1]))
+            publish_time.append(min_time)
+            raw_publish_time.append(min_timestamp)
 
         if not os.path.exists(self.save_dir):
             os.makedirs(self.save_dir)
 
         content_file = os.path.join(self.save_dir, "content.csv")
-        df_content = {'content': content, 'repost_num': repost_num, 'repost_time_avg': repost_time_avg, 'repost_time_std': repost_time_std}
+        df_content = {'content': content, 'repost_num': repost_num, 'publish_time': publish_time, 'raw_publish_time': raw_publish_time, 'repost_time_avg': repost_time_avg, 'repost_time_std': repost_time_std}
 
         # content单独保存
         pd.DataFrame(df_content).to_csv(content_file, index=None)
