@@ -16,7 +16,6 @@ from utils import getTime
 from data import getData
 from model import getModel
 from config import Config
-from statistics import getKmeans, mean
 
 
 def setup_seed(seed):
@@ -28,7 +27,7 @@ def setup_seed(seed):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--modelName', type=str, default='spw',
+    parser.add_argument('--modelName', type=str, default='spwrnn',
                         help='spw')    
     parser.add_argument('--dataset', type=str, default='renminribao',
                         help='weibo dataset name')  
@@ -82,28 +81,6 @@ def run_eval(args, config):
 
     # infer
     results, pred, true = train.do_test(model, test_loader, mode='TEST')
-
-    kmeans = getKmeans(3)
-    set_ = set()
-    pred_analysis = []
-    true_analysis = []
-    for i in range(true.shape[0]):
-        cls_ = kmeans.predict([np.array(true[i])])[0]
-        if cls_ not in set_:
-            set_.add(cls_)
-            pred_analysis.append(np.array(pred[i]))
-            true_analysis.append(np.array(true[i]))
-        if len(set_) == 3:
-            break
-
-    for i in range(3):
-        x = np.arange(0, 24)
-        plt.bar(x, pred_analysis[i], facecolor='blue', width=3, label='Pred')
-        plt.plot(x, true_analysis[i], color= 'red', linewidth=7, label = 'True')
-        plt.title("Pred and True Sequence %d" % i)
-        plt.legend()
-        plt.savefig("result%d.png" % i)
-        plt.clf()
 
     return results
 

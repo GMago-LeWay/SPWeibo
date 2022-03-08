@@ -176,7 +176,7 @@ class TCN(torch.nn.Module):
             num_inputs=1,
             num_channels=[1] * config.layer,
             kernel_size=config.kernel,
-            dropout=0.2,
+            dropout=config.dropout,
         )
 
     def forward(self, text, dec_input, others=None):
