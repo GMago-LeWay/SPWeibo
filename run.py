@@ -35,7 +35,7 @@ def parse_args():
                         help='path to save results.')
     parser.add_argument('--res_save_dir', type=str, default='results/results',
                         help='path to save results.')
-    parser.add_argument('--device', type=int, default=3,
+    parser.add_argument('--device', type=int, default=2,
                         help='GPU id.')
     parser.add_argument('--tune', type=bool, default=True,
                         help='True if run tune task.')
