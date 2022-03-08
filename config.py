@@ -8,7 +8,6 @@ class Config:
         self.modelName = modelName
 
         MODEL_MAP = {
-            'spw': self.__SPW,
             'rnn': self.__RNN,
             'tcn': self.__TCN,
             'spwrnn': self.__SPWRNN,
@@ -37,6 +36,7 @@ class Config:
         dataConfig = {
             # 数据载入
             'data_dir': "/home/disk/disk2/lw/covid-19-weibo-processed/renminribao",
+            'load_from_temp': True,
 
             'interval': 1800,        # 计数时间间隔 600, 900, 1200, 1800, 3600s
             'min_repost': 100,      # 最低转发次数
@@ -68,7 +68,7 @@ class Config:
             # 'use_prompt': False,
             'hidden_size': 128,
             'public_size': 128,
-            'topic_size': 256,
+            'topic_size': 384,
             'framing_size': 6,
             'use_framing': False,
 

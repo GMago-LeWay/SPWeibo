@@ -36,9 +36,10 @@ class WeiboDataTimeSeries(Dataset):
         self.config = config
         self.args = args
 
-    def get_series_and_texts(self):
+    def get_series_and_texts(self, load_from_temp=False):
         """
         Get time series and texts from filtered raw data. 
+        Return: [weibo texts] [repost num series] [weibo idxs]
         """
         repost_dir = os.path.join(self.config.data_dir, "repost_data")
         content_df = pd.read_csv(os.path.join(self.config.data_dir, "content.csv"))
@@ -50,6 +51,21 @@ class WeiboDataTimeSeries(Dataset):
                 continue
             else:
                 legal_weibo_idx.append(i)
+        
+        # load time series (repost num)
+        extract_data_dir = os.path.join(self.config.data_dir, "temp")
+        series_save_name = "series" + str(self.config.interval) + ".npy"
+        idx_save_name = "idx" + str(self.config.interval) + ".npy"
+        series_save_path = os.path.join(extract_data_dir, series_save_name)
+        idx_save_path = os.path.join(extract_data_dir, idx_save_name)  
+        if load_from_temp:
+            assert os.path.exists(series_save_path) and os.path.exists(idx_save_path)
+            legal_weibo_idx = list(np.load(idx_save_path))
+            legal_weibo_time_series = np.load(series_save_path)
+            legal_weibo = [texts[i] for i in legal_weibo_idx]
+            return legal_weibo, legal_weibo_time_series, legal_weibo_idx
+
+        # generate time series (repost num)
         legal_weibo_time_series = []
         legal_weibo = []
         for idx in tqdm(legal_weibo_idx):
@@ -60,6 +76,12 @@ class WeiboDataTimeSeries(Dataset):
             assert repost_nums[idx] == len(repost_time), "uncorrect weibo."
             repost_time_series = get_time_series(repost_time, 0, self.config.valid_time, self.config.interval)
             legal_weibo_time_series.append(repost_time_series)
+
+        # save the generated results
+        if not os.path.exists(extract_data_dir):
+            os.makedirs(extract_data_dir)
+        np.save(series_save_path, np.array(legal_weibo_time_series))
+        np.save(idx_save_path, np.array(legal_weibo_idx))
 
         return legal_weibo, np.array(legal_weibo_time_series), legal_weibo_idx
 
@@ -116,7 +138,7 @@ class WeiboDataTimeSeries(Dataset):
         return relative_time_embeddings, absolute_time_embeddings from 0 to 24th hour.
         """
         interval = self.config.interval
-        relative_time = list(0, 24*60*60 + 1, interval)
+        relative_time = list(range(0, 24*60*60 + 1, interval))
         absolute_time = [relative_timestamp + absolute_daytime for relative_timestamp in relative_time]
         absolute_time = [time % (24*60*60) for time in absolute_time]
 
@@ -133,9 +155,13 @@ class WeiboDataTimeSeries(Dataset):
 
 
     def get_data(self):
+        """
+        Return data list; 
+        item format: [text, processed_time_series, publish_time(seconds in a day), topic embedding, framing]
+        """
 
         print("Get weibo information...")
-        texts, sequences, idxs = self.get_series_and_texts()
+        texts, sequences, idxs = self.get_series_and_texts(self.config.load_from_temp)
         
         print("Get weibo topics information...")
         topics, topic_embeddings = self.get_topics_and_embedding(idxs)
@@ -147,13 +173,6 @@ class WeiboDataTimeSeries(Dataset):
         daytimes = self.get_absolute_daytime(idxs)
 
         assert len(sequences) == len(texts) == len(topic_embeddings) == len(framings) == len(daytimes), "length is not consisitent."
-
-        # TODO: Label Prompt
-        labels = []
-        pattern = '[SEP]<T>[SEP]'
-        def add_label_prompt(string, label):
-            prompt = pattern.replace('<T>', label)
-            return prompt + string
 
         def add(array):
             new_array = np.zeros_like(array)
@@ -187,14 +206,15 @@ class WeiboDataTimeSeries(Dataset):
         def collate_fn(batch):
             batch_size = len(batch)
             texts = [batch[i][0] for i in range(batch_size)]
-            labels = torch.FloatTensor([batch[i][1] for i in range(batch_size)])
-            time_embeds = torch.FloatTensor([self.get_time_embedding_series(batch[i][2]) for i in range(batch_size)])
-            topic_embeds = torch.FloatTensor([batch[i][3] for i in range(batch_size)])
+            labels = torch.FloatTensor( np.array([batch[i][1] for i in range(batch_size)]) )
+            time_embeds = torch.FloatTensor( np.array([self.get_time_embedding_series(batch[i][2]) for i in range(batch_size)]) )
+            topic_embeds = torch.FloatTensor( np.array( [batch[i][3] for i in range(batch_size)]) )
+            framing = torch.FloatTensor( np.array([batch[i][4] for i in range(batch_size)]) )
             decoder_input = torch.zeros((batch_size, 1, 1))
             decoder_inputs = torch.cat([decoder_input, labels[:, :-1].unsqueeze(-1)], dim=1)
             texts = self.tokenizer(texts, padding=True, truncation=True, max_length=self.config.text_cut, return_tensors="pt")
             return {'texts': texts, 'labels': labels, 'dec_inputs': decoder_inputs,
-                    'others': {'rlt_time': time_embeds[:, 0, :, :], 'abs_time': time_embeds[:, 0, :, :], 'topics': topic_embeds, 'framing': None}}
+                    'others': {'rlt_time': time_embeds[:, 0, :, :], 'abs_time': time_embeds[:, 1, :, :], 'topics': topic_embeds, 'framing': framing}}
         return collate_fn
 
 
@@ -212,6 +232,11 @@ def getData(modelName):
 
 if __name__ == "__main__":
     dataclass = WeiboDataTimeSeries(args=None, config=Config('spwrnn', 'renminribao').get_config())
-    data = dataclass.get_data()
-    for data_item in data:
+    train_data, _, _ = dataclass.get_train_val_dataloader()
+    for data_item in train_data:
         print(data_item)
+
+    # intervals = [600, 900, 1200, 1800, 3600]
+    # for interval in intervals:
+    #     dataclass.config.interval = interval
+    #     dataclass.get_data()
