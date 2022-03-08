@@ -9,7 +9,8 @@ class Metrics():
     def __init__(self):
         self.metrics_dict = {
             'match': self._eval_binary,
-            'spw': self._eval_regression,
+            'rnn': self._eval_regression,
+            'tcn': self._eval_regression,
             'spwrnn': self._eval_regression,
         }
     

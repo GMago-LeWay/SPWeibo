@@ -12,7 +12,7 @@ from torch import optim
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 
-from utils import dict_to_str
+from utils import dict_to_str, getTime
 from metrics import Metrics
 
 
@@ -26,7 +26,7 @@ class SPWRNN():
     def do_train(self, model, train_dataloader, val_dataloader):
         # OPTIMIZER: finetune Bert Parameters.
         bert_no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
-        bert_params = list(model.language_model.named_parameters())
+        bert_params = list(model.language_model.named_parameters()) if self.config.language_model else []
 
         bert_params_decay = [p for n, p in bert_params if not any(nd in n for nd in bert_no_decay)]
         bert_params_no_decay = [p for n, p in bert_params if any(nd in n for nd in bert_no_decay)]
@@ -42,12 +42,12 @@ class SPWRNN():
 
         # SCHEDULER
         scheduler = ReduceLROnPlateau(optimizer,
-                    'min' if self.config.KeyEval in ['Loss'] else 'max',
-                    factor=0.5, patience=5, verbose=True)
+                    mode=self.config.scheduler_mode,
+                    factor=0.5, patience=self.config.scheduler_patience, verbose=True)
         # initilize results
         epochs = 0
         valid_num, best_valid_num = 0, 0
-        min_or_max = 'min' if self.config.KeyEval in ['Loss'] else 'max'
+        min_or_max = self.config.scheduler_mode
         best_valid = 1e8 if min_or_max == 'min' else 0
         # loop util earlystop
         while epochs < self.config.max_epochs: 
@@ -64,7 +64,7 @@ class SPWRNN():
                     texts = batch_data['texts'].to(self.args.device)
                     dec_inputs = batch_data['dec_inputs'].to(self.args.device)
                     for key in batch_data['others']:
-                        batch_data['others'][key].to(self.args.device)
+                        batch_data['others'][key] = batch_data['others'][key].to(self.args.device)
                     
                     # clear gradient
                     optimizer.zero_grad()
@@ -90,7 +90,7 @@ class SPWRNN():
                         pred, true = torch.cat(y_pred), torch.cat(y_true)
                         y_pred, y_true = [], []
                         train_results = self.metrics(pred, true)
-                        logging.info("TRAIN-(%s) (%d/%d/%d)>> loss: %.4f %s" % (self.args.modelName, \
+                        logging.info(getTime() + "TRAIN-(%s) (%d/%d/%d)>> loss: %.4f %s" % (self.args.modelName, \
                                     epochs, valid_num - best_valid_num, valid_num, train_loss_avg, dict_to_str(train_results)))
 
                         # validation
@@ -126,19 +126,26 @@ class SPWRNN():
                         texts = batch_data['texts'].to(self.args.device)
                         dec_inputs = batch_data['dec_inputs'].to(self.args.device)
                         for key in batch_data['others']:
-                            batch_data['others'][key].to(self.args.device)
+                            batch_data['others'][key] = batch_data['others'][key].to(self.args.device)
                         # calc observing steps
                         steps = int(observe_time / self.config.interval)
                         dec_inputs = dec_inputs[:, 0:steps+1, :]
                         
                         out_len = steps
-                        outputs = []
+                        outputs = [dec_inputs[:, 1:steps+1, :]]
                         # inference
                         while out_len < labels.shape[1]:
-                            new_prediction = model(text=texts, dec_input=dec_inputs, others=batch_data['others'])[:, -1:, :]
+                            if self.config.name == 'SPWRNN':
+                                new_prediction = model.predict_next(text=texts, dec_input=dec_inputs, others=batch_data['others'])
+                            else:
+                                prediction = model(text=texts, dec_input=dec_inputs, others=batch_data['others'])
+                                new_prediction = prediction[:, -1:, :]
                             outputs.append(new_prediction)
                             dec_inputs = torch.cat([dec_inputs, new_prediction], dim=1)
                             out_len += 1
+                        # rm cache of current weibo
+                        model.clear_eval_cache()
+
                         outputs = torch.cat(outputs, dim=1).squeeze(-1)
                         loss = self.criterion(outputs, labels)
                         eval_loss += loss.item()
@@ -158,7 +165,7 @@ class SPWRNN():
                     gross_eval_results[hours_prefix+key] = eval_results[key]
 
 
-        logging.info("%s-(%s) >> %s" % (mode, self.args.modelName, dict_to_str(eval_results)))
+        logging.info(getTime() + "%s-(%s) >> %s" % (mode, self.args.modelName, dict_to_str(gross_eval_results)))
         return gross_eval_results, pred, true
 
     def do_infer(self, model, dataloader):
@@ -170,15 +177,22 @@ class SPWRNN():
                 texts = batch_data['texts'].to(self.args.device)
                 dec_inputs = torch.zeros((texts.shape[0], 1, 1)).to(self.args.device)
                 for key in batch_data['others']:
-                    batch_data['others'][key].to(self.args.device)
+                    batch_data['others'][key] = batch_data['others'][key].to(self.args.device)
                 # inference
                 out_len = 0
                 outputs = []
                 while out_len < self.config.seq_dim:
-                    new_prediction = model(text=texts, dec_input=dec_inputs, others=batch_data['others'])[:, -1:, :]
+                    if self.config.name == 'SPWRNN':
+                        new_prediction = model.predict_next(text=texts, dec_input=dec_inputs, others=batch_data['others'])
+                    else:
+                        prediction = model(text=texts, dec_input=dec_inputs, others=batch_data['others'])
+                        new_prediction = prediction[:, -1:, :]
                     outputs.append(new_prediction)
                     dec_inputs = torch.cat([dec_inputs, new_prediction], dim=1)
                     out_len += 1
+                # rm cache of current weibo
+                model.clear_eval_cache()
+                
                 outputs = torch.cat(outputs, dim=1)
                 y_pred.append(outputs.cpu())
         predictions = torch.cat(y_pred)

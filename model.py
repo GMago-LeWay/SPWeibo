@@ -5,21 +5,26 @@ import math
 import torch.functional as F
 from torch.nn.utils import weight_norm
 
-class BaseModel(torch.nn.Module):
-    def __init__(self, pretrained_model='bert-base-multilingual-cased') -> None:
-        super(BaseModel, self).__init__()
-
-        self.language_model = AutoModel.from_pretrained(pretrained_model)
-
-    def forward(self, input_ids, input_mask):
-        hidden_states = self.language_model(input_ids)['last_hidden_state']
-        words_num = torch.sum(input_mask, dim=-1).unsqueeze(-1)
-
-        # normalize
-        hidden_states_sum = torch.sum(hidden_states * input_mask.unsqueeze(-1), dim=1)
-        representation = torch.div(hidden_states_sum, words_num)
-
-        return representation
+class FusionNet(torch.nn.Module):
+    def __init__(self, main_features, auxiliary_features, medium_features, target_features) -> None:
+        super(FusionNet, self).__init__()
+        
+        self.fc1 = torch.nn.Linear(main_features+auxiliary_features, medium_features)
+        self.func1 = torch.nn.ReLU()
+        self.fc2 = torch.nn.Linear(medium_features, medium_features)
+        self.func2 = torch.nn.ReLU()
+        self.fc3 = torch.nn.Linear(medium_features, target_features)
+        self.func3 = torch.nn.ReLU()
+    
+    def forward(self, main, auxiliary):
+        features = torch.cat([main, auxiliary], dim=1)
+        features = self.fc1(features)
+        features = self.func1(features)
+        medium_features = self.fc2(features)
+        medium_features = self.func2(medium_features) + features
+        result = self.fc3(medium_features)
+        result = self.func3(result)
+        return result
 
 
 class SPWRNN(torch.nn.Module):
@@ -27,62 +32,177 @@ class SPWRNN(torch.nn.Module):
         super(SPWRNN, self).__init__()
         self.config = config
         self.args = args
-        self.language_model = BaseModel(self.config.pretrained_model)
+
+        # language related model
+        self.language_model = AutoModel.from_pretrained(self.config.pretrained_model)
         self.language_model_config = AutoConfig.from_pretrained(self.config.pretrained_model)
         self.language_hidden_size = self.language_model_config.hidden_size
+        self.language_fusion = FusionNet(self.config.hidden_size, self.config.language_proj_size, self.config.medium_features, 1)
+        # sentence vector extract
+        self.public_vector = nn.Parameter(torch.randn((self.config.public_size)))
+        self.word_key = nn.Linear(self.language_hidden_size, self.config.public_size)
+        self.softmax = nn.Softmax(dim=1)
+        self.language_proj = nn.Linear(self.language_hidden_size, self.config.language_proj_size)
+        self.language_vec_func = nn.ReLU()
 
-        self.predict_model = torch.nn.LSTM(
+        # series related model
+        self.series_model = torch.nn.LSTM(
             input_size=1,
             hidden_size=self.config.hidden_size,
             batch_first=True,
         )
+        self.series_vec_func = nn.ReLU()
 
-        self.public_vector = torch.nn.Parameter(torch.randn((self.config.public_size)))
-        self.word_key = torch.nn.Linear(self.language_hidden_size, self.config.public_size)
-        self.softmax = torch.nn.Softmax(dim=1)
+        # topics related model
+        self.topic_proj = nn.Linear(self.config.topic_size, self.config.topic_proj_size)
+        self.topic_vec_func = nn.ReLU()
+        self.topic_fusion = FusionNet(self.config.hidden_size, self.config.topic_proj_size, self.config.medium_features, 1)
 
-        fusion_input_dim = self.config.hidden_size + self.language_hidden_size + self.config.topic_size
+        # framing related model
+        self.framing_fusion = FusionNet(self.config.hidden_size, self.config.framing_size, self.config.medium_features, 1)
+
+        # time related model
+        self.abs_time_fusion = FusionNet(self.config.hidden_size, self.config.time_size, self.config.medium_features, 1)
+
+        # grand fusion related model
+        auxiliary_dim = self.config.language_proj_size + self.config.topic_proj_size + self.config.time_size
         if self.config.use_framing:
-            fusion_input_dim += self.config.framing_size 
-        self.fusion_fc = torch.nn.Linear(fusion_input_dim, 1)
+            auxiliary_dim += self.config.framing_size 
+        self.grand_fusion = FusionNet(self.config.hidden_size, auxiliary_dim, self.config.medium_features, 1)
 
-        self.time_factor_fc = torch.nn.Linear(3, 1)
+        # final weighted results
+        self.weighed_sum = torch.nn.Linear(5, 1) if self.config.use_framing else torch.nn.Linear(4, 1)
+
+        # eval cache (only available when do_test)
+        self.cache_language = None
+        self.cache_topic = None
+    
+    def clear_eval_cache(self):
+        """
+        After infering one weibo, the cache of features must be removed.
+        """
+        self.cache_language = None
+        self.cache_topic = None        
+    
+    def check_cache(self):
+        return self.cache_language is not None
+
+    def write_cache(self, language_features, topic_features):
+        self.cache_language, self.cache_topic = language_features, topic_features
+
+    def get_features(self, text, dec_input, others, mode='TRAIN'):
+        """
+        Get features from raw input.
+        series_features(seq), language_features, topic_features, abs_time_features(seq), framing_features
+        """
+        seq_len = dec_input.shape[1]
+
+        # extract series features
+        history_features, (_, _) = self.series_model(dec_input)
+
+        # abs time features
+        abs_time = others['abs_time'][:, :seq_len]
+
+        if mode == 'VAL':
+            # validating and there's cached data
+            if self.check_cache():
+                text_features, topic_features = self.cache_language, self.cache_topic
+                return history_features, text_features, topic_features, abs_time, others['framing']
+
+        # extract language features
+        text_representation = self.language_model(text['input_ids'], text['attention_mask'])['last_hidden_state']
+        batch_size, text_len, text_dim = text_representation.shape
+        
+        # get interest semantics (sentence vector)
+        text_representation_ravel = text_representation.view(batch_size*text_len, -1)
+        key = self.word_key(text_representation_ravel)
+        scores = self.softmax(self.public_vector.unsqueeze(0) * key).view(batch_size, text_len, -1)
+        scores = scores.sum(dim=-1) * text['attention_mask']
+        interest_text = (text_representation * scores.unsqueeze(-1)).sum(dim=1)
+        # proj of text
+        text_features = self.language_vec_func(self.language_proj(interest_text))
+
+        # proj of topics
+        topic_features = self.topic_vec_func(self.topic_proj(others['topics']))
+
+        if mode == 'VAL':
+            self.write_cache(text_features, topic_features)
+
+        return history_features, text_features, topic_features, abs_time, others['framing']
 
 
     def forward(self, text, dec_input, others):
-        text_representation = self.language_model(text['input_ids'], text['attention_mask'])
-        batch_size, text_len, text_dim = text_representation.shape
-
-        # extract text features
-        text_representation_ravel = text_representation.view(batch_size*text_len, -1)
-        key = self.word_key(text_representation_ravel)
-        scores = self.softmax(self.public_vector.unsqueeze(0) @ key).view(batch_size, text_len, -1)
-        scores = scores * text['attention_mask']
-        interest_semantic = (text_representation * scores).sum(d=-1)
-
-        # extract history features
-        history_features, (_, _) = self.predict_model(dec_input)
-
-        # extract abs time features
-        batch_size, time_len, time_dim = others['abs_time'].shape
-        abs_time = others['abs_time'].view(batch_size*time_len, -1)
-        time_factor = self.time_factor_fc(abs_time).view(batch_size, time_len)
+        """
+        Train forward.
+        Return all prediction. [batch_size, seq_len, 1]
+        """
+        seq_len = dec_input.shape[1]
+        history_seq, language, topic, abs_time_seq, framing = self.get_features(text, dec_input, others)
 
         # feature fusion for every timestamp and prediction
         prediction = []
-        for i in range(time_len):
+        for i in range(seq_len):
+            # text-series result
+            result_l_s = self.language_fusion(history_seq[:, i, :], language)
+            # time-series result
+            result_a_s = self.abs_time_fusion(history_seq[:, i, :], abs_time_seq[:, i, :])
+            # topic-series result
+            result_t_s = self.topic_fusion(history_seq[:, i, :], topic)
+            # framing-series result
+            result_f_s = self.framing_fusion(history_seq[:, i, :], framing)
+            # grand fusion result
             if self.config.use_framing:
-                features = [interest_semantic, history_features[:, i, :], others['topics']]
+                features = [language, abs_time_seq[:, i, :], topic, framing]
             else:
-                features = [interest_semantic, history_features[:, i, :], others['topics'], others['framing']]
+                features = [language, abs_time_seq[:, i, :], topic]
             fused_features = torch.cat(features, dim=1)
-            prediction_i = self.fusion_fc(fused_features)
+            result_all = self.grand_fusion(history_seq[:, i, :], fused_features)
+            
+            # all results
+            if self.config.use_framing:
+                prediction_i = self.weighed_sum(torch.cat([result_l_s, result_a_s, result_t_s, result_f_s, result_all], dim=1))
+            else:
+                prediction_i = self.weighed_sum(torch.cat([result_l_s, result_a_s, result_t_s, result_all], dim=1))
+
             prediction.append(prediction_i)
         
         prediction = torch.cat(prediction, dim=1)
-        final_prediction = time_factor * prediction
+        return prediction.unsqueeze(-1)
 
-        return final_prediction
+
+    def predict_next(self, text, dec_input, others):
+        """
+        Train forward.
+        Return last position (next timestamp) prediction. [batch_size, 1, 1]
+        """
+        seq_len = dec_input.shape[1]
+        history_seq, language, topic, abs_time_seq, framing = self.get_features(text, dec_input, others, 'VAL')
+
+        # feature fusion for last timestamp and prediction
+
+        # text-series result
+        result_l_s = self.language_fusion(history_seq[:, -1, :], language)
+        # time-series result
+        result_a_s = self.abs_time_fusion(history_seq[:, -1, :], abs_time_seq[:, -1, :])
+        # topic-series result
+        result_t_s = self.topic_fusion(history_seq[:, -1, :], topic)
+        # framing-series result
+        result_f_s = self.framing_fusion(history_seq[:, -1, :], framing)
+        # grand fusion result
+        if self.config.use_framing:
+            features = [language, abs_time_seq[:, -1, :], topic, framing]
+        else:
+            features = [language, abs_time_seq[:, -1, :], topic]
+        fused_features = torch.cat(features, dim=1)
+        result_all = self.grand_fusion(history_seq[:, -1, :], fused_features)
+        
+        # all results
+        if self.config.use_framing:
+            prediction = self.weighed_sum(torch.cat([result_l_s, result_a_s, result_t_s, result_f_s, result_all], dim=1))
+        else:
+            prediction = self.weighed_sum(torch.cat([result_l_s, result_a_s, result_t_s, result_all], dim=1))
+
+        return prediction.unsqueeze(-1)  
 
 
 class RNN(torch.nn.Module):
@@ -94,17 +214,17 @@ class RNN(torch.nn.Module):
             input_size=1,
             hidden_size=self.config.hidden_size,
             batch_first=True,
-            layer=self.config.layer,
+            num_layers=self.config.layer,
         )
         self.predict_fc = torch.nn.Linear(self.config.hidden_size, 1)
 
     def forward(self, text, dec_input, others=None):
         representation, _ = self.rnn_model(dec_input)
         batch_size, time_len, _ = representation.shape
-        representation = representation.view(batch_size*time_len, _)
+        representation = representation.reshape(batch_size*time_len, -1)
         predict = self.predict_fc(representation)
 
-        return predict.view(batch_size, time_len)
+        return predict.view(batch_size, time_len, 1)
 
 
 class Chomp1d(nn.Module):
@@ -180,7 +300,9 @@ class TCN(torch.nn.Module):
         )
 
     def forward(self, text, dec_input, others=None):
-        out = self.tcn_model(dec_input)
+        x = dec_input.permute(0, 2, 1)
+        out = self.tcn_model(x)
+        out = out.permute(0, 2, 1)
         return out
 
 

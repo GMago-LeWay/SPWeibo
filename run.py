@@ -28,7 +28,7 @@ def setup_seed(seed):
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--modelName', type=str, default='spwrnn',
-                        help='spw')    
+                        help='spwrnn/rnn/tcn')    
     parser.add_argument('--dataset', type=str, default='renminribao',
                         help='weibo dataset name')  
     parser.add_argument('--model_save_dir', type=str, default='results/models',
@@ -37,7 +37,7 @@ def parse_args():
                         help='path to save results.')
     parser.add_argument('--device', type=int, default=3,
                         help='GPU id.')
-    parser.add_argument('--tune', type=bool, default=False,
+    parser.add_argument('--tune', type=bool, default=True,
                         help='True if run tune task.')
     parser.add_argument('--infer', type=bool, default=False,
                         help='True if run infer task.')
@@ -90,32 +90,32 @@ def run_task(args, seeds, config):
     logging.info(getTime() + '本轮参数：' + str(config))
     logging.info(getTime() + '本轮Args：' + str(args))
 
-    result = {}
+    original_result = {}
 
     for seed in seeds:
         setup_seed(seed)
         # 每个种子训练开始
         logging.info(getTime() + 'Seed：%d 训练开始' % seed)      
         current_res = run(args, config)
-        result.append(current_res[config.KeyEval])
-        if not result:
+        if not original_result:
             for key in current_res:
-                result[key] = [current_res[key]]
+                original_result[key] = [current_res[key]]
         else:
             for key in current_res:
-                result[key].append(current_res[key])
+                original_result[key].append(current_res[key])
 
     # 保存实验结果
-    for key in result:            
-        mean, std = round(np.mean(result[key]), 2), round(np.std(result[key]), 2)
-        result[key] = mean
-        result[key + '-std'] = std
+    result = {}
+    for key in original_result:            
+        mean, std = round(np.mean(original_result[key]), 3), round(np.std(original_result[key]), 3)
+        result[key] = str(mean)
+        result[key + '-std'] = str(std)
     for key in config:
         result[key] = config[key]
     result['Args'] = args
     result['Config'] = config
 
-    logging.info('本轮效果均值：%f, 标准差：%f' % (result[config.KeyEval], result[config.KeyEval + '-std']))
+    logging.info('本轮效果均值：%s, 标准差：%s' % (result[config.KeyEval], result[config.KeyEval + '-std']))
 
     mode = "tune" if args.tune else "single"
     save_path = os.path.join(args.res_save_dir, f'{args.modelName}-{args.dataset}-{mode}.csv')
@@ -125,12 +125,16 @@ def run_task(args, seeds, config):
         df = pd.read_csv(save_path)
         columns = set(df.columns)
         if set(result.keys()) == columns:       # 如果与已检测到的结果文件格式相符，直接保存
-            df.append(result, ignore_index=True)
+            df = df.append(result, ignore_index=True)
         else:  # 如果格式不符，另存一个文件
+            for key in result:
+                result[key] = [result[key]]
             df = pd.DataFrame(result)
             save_path = save_path[:-4] + "new.csv" 
             logging.info('Warning: 结果格式不符，另存一个新文件.')
-    else:
+    else:       # 不存在结果，新建文件
+        for key in result:
+            result[key] = [result[key]]
         df = pd.DataFrame(result)
    
     df.to_csv(save_path, index=None)
@@ -177,8 +181,8 @@ if __name__ == '__main__':
     elif not args.tune:
         args.model_save_dir = os.path.join(args.model_save_dir, 'regression')
         configure = Config(modelName=args.modelName, dataset=args.dataset).get_config()
-        run_task(args=args, seeds=[11111], config=configure)
+        run_task(args=args, seeds=[1111], config=configure)
     else:
         args.model_save_dir = os.path.join(args.model_save_dir, 'tune')
-        run_tune(args=args, seeds=[111, 1111, 11111], tune_times=100)
+        run_tune(args=args, seeds=[111], tune_times=100)
 

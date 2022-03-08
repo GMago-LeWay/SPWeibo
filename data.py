@@ -214,7 +214,7 @@ class WeiboDataTimeSeries(Dataset):
             decoder_inputs = torch.cat([decoder_input, labels[:, :-1].unsqueeze(-1)], dim=1)
             texts = self.tokenizer(texts, padding=True, truncation=True, max_length=self.config.text_cut, return_tensors="pt")
             return {'texts': texts, 'labels': labels, 'dec_inputs': decoder_inputs,
-                    'others': {'rlt_time': time_embeds[:, 0, :, :], 'abs_time': time_embeds[:, 1, :, :], 'topics': topic_embeds, 'framing': framing}}
+                    'others': {'rlt_time': time_embeds[:, 0, 1:, :].contiguous(), 'abs_time': time_embeds[:, 1, 1:, :].contiguous(), 'topics': topic_embeds, 'framing': framing}}
         return collate_fn
 
 
