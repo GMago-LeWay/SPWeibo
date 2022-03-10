@@ -12,6 +12,7 @@ class Metrics():
             'rnn': self._eval_regression,
             'tcn': self._eval_regression,
             'spwrnn': self._eval_regression,
+            'spwrnn2': self._eval_regression,
         }
     
     def get_metrics(self, modelName):

@@ -204,6 +204,7 @@ def getTrain(modelName):
         'rnn': SPWRNN,
         'tcn': SPWRNN,
         'spwrnn': SPWRNN,
+        'spwrnn2': SPWRNN,
     }
 
     assert modelName in TRAIN_MAP.keys(), 'Not support ' + modelName

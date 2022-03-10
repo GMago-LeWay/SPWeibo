@@ -27,7 +27,7 @@ def setup_seed(seed):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--modelName', type=str, default='spwrnn',
+    parser.add_argument('--modelName', type=str, default='spwrnn2',
                         help='spwrnn/rnn/tcn')    
     parser.add_argument('--dataset', type=str, default='renminribao',
                         help='weibo dataset name')  
@@ -35,9 +35,9 @@ def parse_args():
                         help='path to save results.')
     parser.add_argument('--res_save_dir', type=str, default='results/results',
                         help='path to save results.')
-    parser.add_argument('--device', type=int, default=2,
+    parser.add_argument('--device', type=int, default=1,
                         help='GPU id.')
-    parser.add_argument('--tune', type=bool, default=True,
+    parser.add_argument('--tune', type=bool, default=False,
                         help='True if run tune task.')
     parser.add_argument('--infer', type=bool, default=False,
                         help='True if run infer task.')
@@ -181,7 +181,7 @@ if __name__ == '__main__':
     elif not args.tune:
         args.model_save_dir = os.path.join(args.model_save_dir, 'regression')
         configure = Config(modelName=args.modelName, dataset=args.dataset).get_config()
-        run_task(args=args, seeds=[1111], config=configure)
+        run_task(args=args, seeds=[111], config=configure)
     else:
         args.model_save_dir = os.path.join(args.model_save_dir, 'tune')
         run_tune(args=args, seeds=[111], tune_times=100)

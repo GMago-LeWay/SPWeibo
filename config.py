@@ -11,6 +11,7 @@ class Config:
             'rnn': self.__RNN,
             'tcn': self.__TCN,
             'spwrnn': self.__SPWRNN,
+            'spwrnn2': self.__SPWRNN,
         }
 
         DATA_MAP = {

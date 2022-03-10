@@ -71,7 +71,14 @@ class SPWRNN(torch.nn.Module):
         self.grand_fusion = FusionNet(self.config.hidden_size, auxiliary_dim, self.config.medium_features, 1)
 
         # final weighted results
-        self.weighed_sum = torch.nn.Linear(5, 1) if self.config.use_framing else torch.nn.Linear(4, 1)
+        # self.weighed_sum = nn.Linear(5, 1) if self.config.use_framing else nn.Linear(4, 1)
+        in_dim = 5 if self.config.use_framing else 4
+        initial_weight = [0.] * in_dim
+        initial_weight[1] = 1.      # result_a_s initial weight 1.
+        timestamps = int(24*60*60/self.config.interval)
+        initial_weight = [list(initial_weight) for i in range(timestamps)]
+        self.sum_weight = nn.Parameter(torch.Tensor(initial_weight))
+        self.weight_norm = nn.Softmax(dim=0)
 
         # eval cache (only available when do_test)
         self.cache_language = None
@@ -159,12 +166,13 @@ class SPWRNN(torch.nn.Module):
             result_all = self.grand_fusion(history_seq[:, i, :], fused_features)
             
             # all results
+            weight = self.weight_norm(self.sum_weight[i, :])
             if self.config.use_framing:
-                prediction_i = self.weighed_sum(torch.cat([result_l_s, result_a_s, result_t_s, result_f_s, result_all], dim=1))
+                prediction_i = torch.cat([result_l_s, result_a_s, result_t_s, result_f_s, result_all], dim=1) @ weight
             else:
-                prediction_i = self.weighed_sum(torch.cat([result_l_s, result_a_s, result_t_s, result_all], dim=1))
+                prediction_i = torch.cat([result_l_s, result_a_s, result_t_s, result_all], dim=1) @ weight
 
-            prediction.append(prediction_i)
+            prediction.append(prediction_i.unsqueeze(-1))
         
         prediction = torch.cat(prediction, dim=1)
         return prediction.unsqueeze(-1)
@@ -197,12 +205,13 @@ class SPWRNN(torch.nn.Module):
         result_all = self.grand_fusion(history_seq[:, -1, :], fused_features)
         
         # all results
+        weight = self.weight_norm(self.sum_weight[seq_len-1, :])
         if self.config.use_framing:
-            prediction = self.weighed_sum(torch.cat([result_l_s, result_a_s, result_t_s, result_f_s, result_all], dim=1))
+            prediction = torch.cat([result_l_s, result_a_s, result_t_s, result_f_s, result_all], dim=1) @ weight
         else:
-            prediction = self.weighed_sum(torch.cat([result_l_s, result_a_s, result_t_s, result_all], dim=1))
+            prediction = torch.cat([result_l_s, result_a_s, result_t_s, result_all], dim=1) @ weight
 
-        return prediction.unsqueeze(-1)  
+        return prediction.unsqueeze(-1).unsqueeze(-1)
 
 
 class RNN(torch.nn.Module):
@@ -311,6 +320,7 @@ def getModel(modelName):
         'rnn': RNN,
         'tcn': TCN,
         'spwrnn': SPWRNN,
+        'spwrnn2': SPWRNN,
     }
 
     assert modelName in MODEL_MAP.keys(), 'Not support ' + modelName
