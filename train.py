@@ -144,7 +144,8 @@ class SPWRNN():
                             dec_inputs = torch.cat([dec_inputs, new_prediction], dim=1)
                             out_len += 1
                         # rm cache of current weibo
-                        model.clear_eval_cache()
+                        if self.config.name == 'SPWRNN':
+                            model.clear_eval_cache()
 
                         outputs = torch.cat(outputs, dim=1).squeeze(-1)
                         loss = self.criterion(outputs, labels)
@@ -191,7 +192,8 @@ class SPWRNN():
                     dec_inputs = torch.cat([dec_inputs, new_prediction], dim=1)
                     out_len += 1
                 # rm cache of current weibo
-                model.clear_eval_cache()
+                if self.config.name == 'SPWRNN':
+                    model.clear_eval_cache()
                 
                 outputs = torch.cat(outputs, dim=1)
                 y_pred.append(outputs.cpu())

@@ -64,7 +64,7 @@ class Config:
 
             # 预训练模型设置
             'language_model': True,
-            'pretrained_model': 'pretrained_model/chinese-roberta-wwm-ext',
+            'pretrained_model': '/home/disk/disk2/lw/pretrained_model/chinese-roberta-wwm-ext',
 
             # 模型固定参数
             'topic_size': 384,
@@ -77,7 +77,7 @@ class Config:
             'language_proj_size': 16,
             'topic_proj_size': 16,
             'medium_features': 16,
-            'use_framing': False,
+            'use_framing': True,
 
             # 学习参数设置
             'max_epochs': 50,
@@ -101,13 +101,13 @@ class Config:
 
             # 预训练模型设置
             'language_model': True,
-            'pretrained_model': 'pretrained_model/chinese-roberta-wwm-ext',
+            'pretrained_model': '/home/disk/disk2/lw/pretrained_model/chinese-roberta-wwm-ext',
 
             # 模型设置
             'topic_size': 384,
             'framing_size': 6,
             'time_size': 3,
-            'use_framing': False,
+            'use_framing': True,
 
             # 评估设置
             'KeyEval': '3.0h_Loss',
@@ -124,7 +124,7 @@ class Config:
             'public_size': random.choice([32, 64, 128]),
             'language_proj_size': random.choice([8, 16, 32, 64]),
             'topic_proj_size': random.choice([8, 16, 32, 64]),
-            'medium_features': random.choice([8, 16, 32]),
+            'medium_features': random.choice([8, 16, 32, 64]),
 
             'learning_rate_bert': random.choice([0, 0, 0, 0, 1e-05, 5e-5, 5e-4, 1e-3]),
             'learning_rate_other': random.choice([1e-4, 5e-4, 0.001, 0.002]),

@@ -78,7 +78,7 @@ class SPWRNN(torch.nn.Module):
         timestamps = int(24*60*60/self.config.interval)
         initial_weight = [list(initial_weight) for i in range(timestamps)]
         self.sum_weight = nn.Parameter(torch.Tensor(initial_weight))
-        self.weight_norm = nn.Softmax(dim=0)
+        # self.weight_norm = nn.Softmax(dim=0)
 
         # eval cache (only available when do_test)
         self.cache_language = None
@@ -166,7 +166,7 @@ class SPWRNN(torch.nn.Module):
             result_all = self.grand_fusion(history_seq[:, i, :], fused_features)
             
             # all results
-            weight = self.weight_norm(self.sum_weight[i, :])
+            weight = self.sum_weight[i, :]
             if self.config.use_framing:
                 prediction_i = torch.cat([result_l_s, result_a_s, result_t_s, result_f_s, result_all], dim=1) @ weight
             else:
@@ -205,7 +205,7 @@ class SPWRNN(torch.nn.Module):
         result_all = self.grand_fusion(history_seq[:, -1, :], fused_features)
         
         # all results
-        weight = self.weight_norm(self.sum_weight[seq_len-1, :])
+        weight = self.sum_weight[seq_len-1, :]
         if self.config.use_framing:
             prediction = torch.cat([result_l_s, result_a_s, result_t_s, result_f_s, result_all], dim=1) @ weight
         else:
