@@ -78,14 +78,15 @@ class Config:
             'topic_proj_size': 16,
             'medium_features': 16,
             'use_framing': True,
+            'initialize_steps': 1,
 
             # 学习参数设置
-            'max_epochs': 50,
+            'max_epochs': 100,
             'learning_rate_bert': 1e-05,
             'learning_rate_other': 0.002,
             'weight_decay_bert': 0.,
             'weight_decay_other': 0.0001,         
-            'early_stop': 8,
+            'early_stop': 10,
 
             # 评估设置
             'KeyEval': '3.0h_Loss',
@@ -116,8 +117,8 @@ class Config:
             'eval_step': None,        # eval间隔的step数, None表示1eval/epoch
 
             # 学习参数设置
-            'early_stop': 8,
-            'max_epochs': 50,
+            'early_stop': 10,
+            'max_epochs': 100,
 
             # 调参
             'hidden_size': random.choice([32, 64, 128, 256]),
@@ -125,6 +126,7 @@ class Config:
             'language_proj_size': random.choice([8, 16, 32, 64]),
             'topic_proj_size': random.choice([8, 16, 32, 64]),
             'medium_features': random.choice([8, 16, 32, 64]),
+            'initialize_steps': random.choice([1, 2, 3]),
 
             'learning_rate_bert': random.choice([0, 0, 0, 0, 1e-05, 5e-5, 5e-4, 1e-3]),
             'learning_rate_other': random.choice([1e-4, 5e-4, 0.001, 0.002]),
