@@ -221,6 +221,63 @@ class SPWRNN(torch.nn.Module):
         return prediction.unsqueeze(-1)
 
 
+class SPWRNN_WO_L(torch.nn.Module):
+    def __init__(self, config, args) -> None:
+        super(SPWRNN_WO_L, self).__init__()
+        self.config = config
+        self.args = args
+
+        # series related model
+        self.series_model = torch.nn.LSTM(
+            input_size=1,
+            hidden_size=self.config.hidden_size,
+            batch_first=True,
+        )
+        self.series_vec_func = nn.ReLU()
+
+        # time related model
+        self.abs_time_fusion = FusionNet(self.config.hidden_size, self.config.time_size, self.config.medium_features, 1)
+
+        # final weighted results
+        self.one_weight = nn.Linear(1, 1)
+        # self.weight_norm = nn.Softmax(dim=0)
+
+    def get_features(self, text, dec_input, others, mode='TRAIN'):
+        """
+        Get features from raw input.
+        series_features(seq), language_features, topic_features, abs_time_features(seq), framing_features
+        """
+        seq_len = dec_input.shape[1]
+
+        # extract series features
+        history_features, (_, _) = self.series_model(dec_input)
+
+        # abs time features
+        abs_time = others['abs_time'][:, :seq_len]
+
+        return history_features, None, None, abs_time, None
+
+
+    def forward(self, text, dec_input, others):
+        """
+        Train forward.
+        Return all prediction. [batch_size, seq_len, 1]
+        """
+        seq_len = dec_input.shape[1]
+        history_seq, language, topic, abs_time_seq, framing = self.get_features(text, dec_input, others)
+
+        # feature fusion for every timestamp and prediction
+        prediction = []
+        for i in range(seq_len):
+            # time-series result
+            result_a_s = self.abs_time_fusion(history_seq[:, i, :], abs_time_seq[:, i, :])
+            prediction_i = self.one_weight(result_a_s)
+            prediction.append(prediction_i)             
+        
+        prediction = torch.cat(prediction, dim=1)
+        return prediction.unsqueeze(-1)
+
+
 class RNN(torch.nn.Module):
     def __init__(self, config, args) -> None:
         super(RNN, self).__init__()
@@ -328,6 +385,7 @@ def getModel(modelName):
         'tcn': TCN,
         'spwrnn': SPWRNN,
         'spwrnn2': SPWRNN,
+        'spwrnn_wo_l': SPWRNN_WO_L,
     }
 
     assert modelName in MODEL_MAP.keys(), 'Not support ' + modelName
