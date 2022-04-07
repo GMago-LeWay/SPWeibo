@@ -41,7 +41,7 @@ class Config:
             'data_dir': "/home/disk/disk2/lw/covid-19-weibo-processed/renminribao",
             'load_from_temp': True,
 
-            'interval': 1800,        # 计数时间间隔 600, 900, 1200, 1800, 3600s
+            'interval': 3600,        # 计数时间间隔 600, 900, 1200, 1800, 3600s
             'min_repost': 100,      # 最低转发次数
             'max_repost': 10000,    # 最大转发次数
             'observe_time': [0*3600, 1*3600, 2*3600, 3*3600, 6*3600],  # 观察时间长度
@@ -81,6 +81,7 @@ class Config:
             'medium_features': 8,
             'use_framing': True,
             'initialize_steps': 2,
+            'topic_num': 10,
 
             # 学习参数设置
             'max_epochs': 100,
@@ -111,6 +112,7 @@ class Config:
             'framing_size': 6,
             'time_size': 3,
             'use_framing': False,
+            'topic_num': 10,
 
             # 评估设置
             'KeyEval': '3.0h_Loss',
@@ -212,7 +214,7 @@ class Config:
 
             # tokenizer设置
             'language_model': False,
-            'pretrained_model': 'pretrained_model/chinese-roberta-wwm-ext',
+            'pretrained_model': '/home/disk/disk2/lw/pretrained_model/chinese-roberta-wwm-ext',
 
             # 模型设置
             # 'use_prompt': False,
@@ -241,7 +243,7 @@ class Config:
 
             # tokenizer设置
             'language_model': False,
-            'pretrained_model': 'pretrained_model/chinese-roberta-wwm-ext',
+            'pretrained_model': '/home/disk/disk2/lw/pretrained_model/chinese-roberta-wwm-ext',
 
             # 模型设置
             
@@ -275,7 +277,7 @@ class Config:
 
             # tokenizer设置
             'language_model': False,
-            'pretrained_model': 'pretrained_model/chinese-roberta-wwm-ext',
+            'pretrained_model': '/home/disk/disk2/lw/pretrained_model/chinese-roberta-wwm-ext',
 
             # 模型设置
             # 'use_prompt': False,
@@ -305,7 +307,7 @@ class Config:
 
             # tokenizer设置
             'language_model': False,
-            'pretrained_model': 'pretrained_model/chinese-roberta-wwm-ext',
+            'pretrained_model': '/home/disk/disk2/lw/pretrained_model/chinese-roberta-wwm-ext',
 
             # 模型设置
 
