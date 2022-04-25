@@ -27,15 +27,15 @@ def setup_seed(seed):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--modelName', type=str, default='spwrnn',
-                        help='spwrnn/spwrnn2//rnn/tcn/spwrnn_wo_l')    
+    parser.add_argument('--modelName', type=str, default='spwrnn_beta',
+                        help='spwrnn/spwrnn2//rnn/tcn/spwrnn_wo_l/spwrnn_beta')    
     parser.add_argument('--dataset', type=str, default='renminribao',
                         help='weibo dataset name')  
     parser.add_argument('--model_save_dir', type=str, default='results/models',
                         help='path to save results.')
     parser.add_argument('--res_save_dir', type=str, default='results/results',
                         help='path to save results.')
-    parser.add_argument('--device', type=int, default=2,
+    parser.add_argument('--device', type=int, default=3,
                         help='GPU id.')
     parser.add_argument('--tune', type=bool, default=False,
                         help='True if run tune task.')

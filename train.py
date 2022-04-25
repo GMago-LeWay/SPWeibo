@@ -10,6 +10,7 @@ import torch
 import torch.nn as nn
 from torch import optim
 from torch.optim.lr_scheduler import ReduceLROnPlateau
+from model_beta import SPWRNN_BETA
 
 
 from utils import dict_to_str, getTime
@@ -210,6 +211,7 @@ def getTrain(modelName):
         'tcn': SPWRNN,
         'spwrnn': SPWRNN,
         'spwrnn2': SPWRNN,
+        'spwrnn_beta': SPWRNN,
         'spwrnn_wo_l': SPWRNN,
     }
 

@@ -14,6 +14,7 @@ class Metrics():
             'tcn': self._eval_regression,
             'spwrnn': self._eval_regression,
             'spwrnn2': self._eval_regression,
+            'spwrnn_beta': self._eval_regression,
             'spwrnn_wo_l': self._eval_regression,
         }
     

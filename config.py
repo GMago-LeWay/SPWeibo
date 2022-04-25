@@ -12,6 +12,7 @@ class Config:
             'tcn': self.__TCN,
             'spwrnn': self.__SPWRNN,
             'spwrnn2': self.__SPWRNN,
+            'spwrnn_beta': self.__SPWRNN_BETA,
             'spwrnn_wo_l': self.__SPWRNN_WO_L,
             'framing': self.__FRAMING,
         }
@@ -27,6 +28,9 @@ class Config:
 
 
     def solve_conflict(self):
+        # model preconfig
+        if self.modelName == 'spwrnn_beta':
+            self.args.use_predicted_framing = False
         return
 
     
@@ -56,7 +60,7 @@ class Config:
             'text_cut': 200,       # 文本截断长度
 
             # 是否加载framing的预测结果
-            'use_predicted_framing': True,
+            'use_predicted_framing': False,
         }
 
         dataTuneConfig = {
@@ -69,7 +73,7 @@ class Config:
             'observe_time': [0*3600, 1*3600, 2*3600, 3*3600, 6*3600],  # 观察时间长度
             'valid_time': 24*3600,    # 预测时间长度
             'max_seq_len': 256,     # 模型最大长度
-            'topic_num': random.choice([10]),        # 主题的个数
+            'topic_num': random.choice([100, 219]),        # 主题的个数[10, 100, 219]
 
             # 数据集设置
             'validate': 0.1,
@@ -78,7 +82,7 @@ class Config:
             'text_cut': 200,       # 文本截断长度
 
             # 是否加载framing的预测结果
-            'use_predicted_framing': True,            
+            'use_predicted_framing': False,            
         }
 
         return dataTuneConfig if tune else dataConfig
@@ -89,6 +93,7 @@ class Config:
         Config = {
             # 标识符
             'name': 'SPWRNN',
+            'actual_model': 'SPWRNN',
 
             # 预训练模型设置
             'language_model': True,
@@ -127,6 +132,7 @@ class Config:
             # 不变参数
             # 标识符
             'name': 'SPWRNN',
+            'actual_model': 'SPWRNN',
 
             # 预训练模型设置
             'language_model': True,
@@ -147,6 +153,89 @@ class Config:
             # 学习参数设置
             'early_stop': 10,
             'max_epochs': 100,
+
+            # 调参
+            'hidden_size': random.choice([32, 64, 128, 256]),
+            'public_size': random.choice([32, 64, 128]),
+            'language_proj_size': random.choice([8, 16, 32, 64]),
+            'topic_proj_size': random.choice([8, 16, 32, 64]),
+            'medium_features': random.choice([8, 16, 32, 64]),
+            'initialize_steps': random.choice([1, 2, 3]),
+
+            'learning_rate_bert': random.choice([0, 0, 0, 0, 1e-05, 5e-5, 5e-4, 1e-3]),
+            'learning_rate_other': random.choice([1e-4, 5e-4, 0.001, 0.002]),
+            'weight_decay_bert': random.choice([0, 0.0001]),
+            'weight_decay_other': random.choice([0, 0.0001]),    
+        }
+
+        return TuneConfig if tune else Config
+
+
+    def __SPWRNN_BETA(self, tune):
+
+        Config = {
+            # 标识符
+            'name': 'SPWRNN',
+            'actual_model': 'SPWRNN_BETA',
+
+            # 预训练模型设置
+            'language_model': True,
+            'pretrained_model': '/home/disk/disk2/lw/pretrained_model/chinese-roberta-wwm-ext',
+
+            # 模型固定参数
+            'topic_size': 384,
+            'framing_size': 6,
+            'time_size': 3,
+
+            # 模型可调参数
+            'hidden_size': 64,             # history
+            'public_size': 128,             # public vector size
+            'language_proj_size': 8,
+            'topic_proj_size': 16,
+            'medium_features': 8,
+            'use_framing': True,
+            'initialize_steps': 2,
+
+            # 学习参数设置
+            'max_epochs': 40,
+            'learning_rate_bert': 0.001,
+            'learning_rate_other': 0.002,
+            'weight_decay_bert': 0.0001,
+            'weight_decay_other': 0.0001,         
+            'early_stop': 6,
+
+            # 评估设置
+            'KeyEval': '3.0h_Loss',
+            'scheduler_mode': 'min',
+            'scheduler_patience': 3,
+            'eval_step': None,        # eval间隔的step数, None表示1eval/epoch
+        }
+
+        TuneConfig = {     
+            # 不变参数
+            # 标识符
+            'name': 'SPWRNN',
+            'actual_model': 'SPWRNN_BETA',
+
+            # 预训练模型设置
+            'language_model': True,
+            'pretrained_model': '/home/disk/disk2/lw/pretrained_model/chinese-roberta-wwm-ext',
+
+            # 模型设置
+            'topic_size': 384,
+            'framing_size': 6,
+            'time_size': 3,
+            'use_framing': True,
+
+            # 评估设置
+            'KeyEval': '3.0h_Loss',
+            'scheduler_mode': 'min',
+            'scheduler_patience': 3,
+            'eval_step': None,        # eval间隔的step数, None表示1eval/epoch
+
+            # 学习参数设置
+            'early_stop': 6,
+            'max_epochs': 40,
 
             # 调参
             'hidden_size': random.choice([32, 64, 128, 256]),

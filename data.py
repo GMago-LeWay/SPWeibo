@@ -255,6 +255,7 @@ def getData(modelName):
         'tcn': WeiboDataTimeSeries,
         'spwrnn': WeiboDataTimeSeries,
         'spwrnn2': WeiboDataTimeSeries,
+        'spwrnn_beta': WeiboDataTimeSeries,
         'spwrnn_wo_l': WeiboDataTimeSeries,
     }
 
