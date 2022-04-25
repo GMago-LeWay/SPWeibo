@@ -83,6 +83,6 @@ class TopicExtractor:
 if __name__ == "__main__":
     renminribao = '/home/disk/disk2/lw/covid-19-weibo-processed/renminribao'
 
-    extrator = TopicExtractor(renminribao)
-    extrator.extract(topic_num=9, random_seed=24)
+    extrator = TopicExtractor(renminribao, cls_num=10)
+    extrator.extract(random_seed=24)
 

@@ -21,7 +21,7 @@ class Config:
         }
 
         commonArgs = MODEL_MAP[modelName](tune)
-        dataArgs = DATA_MAP[dataset]()
+        dataArgs = DATA_MAP[dataset](tune)
 
         self.args = Storage({**commonArgs, **dataArgs})
 
@@ -34,28 +34,54 @@ class Config:
         self.solve_conflict()
         return self.args
 
-    def __RMRB(self):
+    def __RMRB(self, tune):
 
         dataConfig = {
             # 数据载入
             'data_dir': "/home/disk/disk2/lw/covid-19-weibo-processed/renminribao",
             'load_from_temp': True,
 
-            'interval': 3600,        # 计数时间间隔 600, 900, 1200, 1800, 3600s
+            'interval': 1800,        # 计数时间间隔 600, 900, 1200, 1800, 3600s
             'min_repost': 100,      # 最低转发次数
             'max_repost': 10000,    # 最大转发次数
             'observe_time': [0*3600, 1*3600, 2*3600, 3*3600, 6*3600],  # 观察时间长度
             'valid_time': 24*3600,    # 预测时间长度
             'max_seq_len': 256,     # 模型最大长度
+            'topic_num': 10,        # 主题的个数
 
             # 数据集设置
             'validate': 0.1,
             'test': 0.15,
             'batch_size': 32,
             'text_cut': 200,       # 文本截断长度
+
+            # 是否加载framing的预测结果
+            'use_predicted_framing': True,
         }
 
-        return dataConfig
+        dataTuneConfig = {
+            'data_dir': "/home/disk/disk2/lw/covid-19-weibo-processed/renminribao",
+            'load_from_temp': True,
+
+            'interval': 1800,        # 计数时间间隔 600, 900, 1200, 1800, 3600s
+            'min_repost': 100,      # 最低转发次数
+            'max_repost': 10000,    # 最大转发次数
+            'observe_time': [0*3600, 1*3600, 2*3600, 3*3600, 6*3600],  # 观察时间长度
+            'valid_time': 24*3600,    # 预测时间长度
+            'max_seq_len': 256,     # 模型最大长度
+            'topic_num': random.choice([10]),        # 主题的个数
+
+            # 数据集设置
+            'validate': 0.1,
+            'test': 0.15,
+            'batch_size': 32,
+            'text_cut': 200,       # 文本截断长度
+
+            # 是否加载framing的预测结果
+            'use_predicted_framing': True,            
+        }
+
+        return dataTuneConfig if tune else dataConfig
         
 
     def __SPWRNN(self, tune):
@@ -81,7 +107,6 @@ class Config:
             'medium_features': 8,
             'use_framing': True,
             'initialize_steps': 2,
-            'topic_num': 10,
 
             # 学习参数设置
             'max_epochs': 100,
@@ -111,8 +136,7 @@ class Config:
             'topic_size': 384,
             'framing_size': 6,
             'time_size': 3,
-            'use_framing': False,
-            'topic_num': 10,
+            'use_framing': True,
 
             # 评估设置
             'KeyEval': '3.0h_Loss',
@@ -348,18 +372,18 @@ class Config:
 
 
             # 模型可调参数
-            'dropout': 0.2,
+            'dropout': 0.1,
 
             # 学习参数设置
             'max_epochs': 100,
-            'learning_rate_bert': 1e-04,
-            'learning_rate_other': 0.002,
+            'learning_rate_bert': 5e-05,
+            'learning_rate_other': 0.005,
             'weight_decay_bert': 0.0001,
-            'weight_decay_other': 0.,         
+            'weight_decay_other': 0.0001,         
             'early_stop': 8,
 
             # 评估设置
-            'KeyEval': 'recall_avg',
+            'KeyEval': 'f1_avg',
             'scheduler_mode': 'max',
             'scheduler_patience': 4,
             'eval_step': None,        # eval间隔的step数, None表示1eval/epoch

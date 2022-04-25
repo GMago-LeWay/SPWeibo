@@ -127,6 +127,9 @@ class SPWRNN():
                         dec_inputs = batch_data['dec_inputs'].to(self.args.device)
                         for key in batch_data['others']:
                             batch_data['others'][key] = batch_data['others'][key].to(self.args.device)
+                        # framing substitution under test mode if predicted framings are used
+                        if self.config.use_predicted_framing:
+                            batch_data['others']['framing'] = batch_data['others']['predicted_framing']
                         # calc observing steps
                         steps = int(observe_time / self.config.interval)
                         dec_inputs = dec_inputs[:, 0:steps+1, :]

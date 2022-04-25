@@ -11,6 +11,7 @@ import os
 import pickle
 import time
 from tqdm import tqdm
+from framing_subnet import BERT_CLS, TrainBERT
 
 from config import Config
 from utils import getTime
@@ -100,9 +101,32 @@ class WeiboDataTimeSeries(Dataset):
         return legal_weibo_framing
 
 
+    def get_predicted_framing(self, legal_weibo_idx):
+        # initialize framing model
+        model_save_path = os.path.join('results/models/regression', 'framing.pth')
+        config = Config(modelName='framing', dataset=self.args.dataset).get_config()
+        model = BERT_CLS(config=config, args=self.args).to(self.args.device)
+        model.load_state_dict(torch.load(model_save_path))
+        train = TrainBERT(args=self.args, config=config)
+
+        # get texts dataloader
+        content_df = pd.read_csv(os.path.join(self.config.data_dir, "content.csv"))
+        texts = content_df['content'].to_list()
+        legal_weibo_texts = [texts[idx] for idx in legal_weibo_idx]
+
+        def collate_fn(batch):
+            texts = self.tokenizer(batch, padding=True, truncation=True, max_length=config.text_cut, return_tensors="pt")
+            return {'texts': texts}
+
+        data = DataLoader(legal_weibo_texts, batch_size=config.batch_size, collate_fn=collate_fn, drop_last=False)
+
+        res = train.do_infer(model, data)
+        return list(res)
+
+
     def get_topics_and_embedding(self, legal_weibo_idx):
-        topic_file = os.path.join(self.config.data_dir, "topic.pkl")
-        content_topic_file = os.path.join(self.config.data_dir, "content_topic.csv")
+        topic_file = os.path.join(self.config.data_dir, f"topic{self.config.topic_num}.pkl")
+        content_topic_file = os.path.join(self.config.data_dir, f"content_topic{self.config.topic_num}.csv")
 
         # Load topic class and embeddings, from class -1 to last topic
         with open(topic_file, 'rb') as f:
@@ -172,6 +196,12 @@ class WeiboDataTimeSeries(Dataset):
         print("Get weibo time information...")
         daytimes = self.get_absolute_daytime(idxs)
 
+        if self.config.use_predicted_framing:
+            print("Get predicted framing information...")
+            predicted_framings = self.get_predicted_framing(idxs)
+        else:
+            predicted_framings = [-1.] * len(idxs)
+
         assert len(sequences) == len(texts) == len(topic_embeddings) == len(framings) == len(daytimes), "length is not consisitent."
 
         def add(array):
@@ -185,7 +215,7 @@ class WeiboDataTimeSeries(Dataset):
         
         # added time series
         # function: log(num + 1)
-        return [[texts[i], log_function(add(sequences[i])), daytimes[i], topic_embeddings[i], framings[i]] for i in range(len(texts))]
+        return [[texts[i], log_function(add(sequences[i])), daytimes[i], topic_embeddings[i], framings[i], predicted_framings[i]] for i in range(len(texts))]
 
 
     def get_train_val_dataloader(self):
@@ -210,11 +240,12 @@ class WeiboDataTimeSeries(Dataset):
             time_embeds = torch.FloatTensor( np.array([self.get_time_embedding_series(batch[i][2]) for i in range(batch_size)]) )
             topic_embeds = torch.FloatTensor( np.array( [batch[i][3] for i in range(batch_size)]) )
             framing = torch.FloatTensor( np.array([batch[i][4] for i in range(batch_size)]) )
+            predicted_framing = torch.FloatTensor( np.array([batch[i][5] for i in range(batch_size)]) )
             decoder_input = torch.zeros((batch_size, 1, 1))
             decoder_inputs = torch.cat([decoder_input, labels[:, :-1].unsqueeze(-1)], dim=1)
             texts = self.tokenizer(texts, padding=True, truncation=True, max_length=self.config.text_cut, return_tensors="pt")
             return {'texts': texts, 'labels': labels, 'dec_inputs': decoder_inputs,
-                    'others': {'rlt_time': time_embeds[:, 0, 1:, :].contiguous(), 'abs_time': time_embeds[:, 1, 1:, :].contiguous(), 'topics': topic_embeds, 'framing': framing}}
+                    'others': {'rlt_time': time_embeds[:, 0, 1:, :].contiguous(), 'abs_time': time_embeds[:, 1, 1:, :].contiguous(), 'topics': topic_embeds, 'framing': framing, 'predicted_framing': predicted_framing}}
         return collate_fn
 
 
