@@ -41,7 +41,7 @@ class Config:
             'data_dir': "/home/disk/disk2/lw/covid-19-weibo-processed/renminribao",
             'load_from_temp': True,
 
-            'interval': 900,        # 计数时间间隔 600, 900, 1200, 1800, 3600s
+            'interval': 1800,        # 计数时间间隔 600, 900, 1200, 1800, 3600s
             'min_repost': 100,      # 最低转发次数
             'max_repost': 10000,    # 最大转发次数
             'observe_time': [0*3600, 1*3600, 2*3600, 3*3600, 6*3600],  # 观察时间长度
