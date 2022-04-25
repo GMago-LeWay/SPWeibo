@@ -10,11 +10,11 @@ class FusionNet(torch.nn.Module):
         super(FusionNet, self).__init__()
         
         self.fc1 = torch.nn.Linear(main_features+auxiliary_features, medium_features)
-        self.func1 = torch.nn.ReLU()
+        self.func1 = torch.nn.LeakyReLU()
         self.fc2 = torch.nn.Linear(medium_features, medium_features)
-        self.func2 = torch.nn.ReLU()
+        self.func2 = torch.nn.LeakyReLU()
         self.fc3 = torch.nn.Linear(medium_features, target_features)
-        self.func3 = torch.nn.ReLU()
+        self.func3 = torch.nn.LeakyReLU()
     
     def forward(self, main, auxiliary):
         features = torch.cat([main, auxiliary], dim=1)
@@ -71,7 +71,12 @@ class SPWRNN(torch.nn.Module):
         self.grand_fusion = FusionNet(self.config.hidden_size, auxiliary_dim, self.config.medium_features, 1)
 
         # final weighted results
-        self.weighed_sum = torch.nn.Linear(5, 1) if self.config.use_framing else torch.nn.Linear(4, 1)
+        # self.weighed_sum = nn.Linear(5, 1) if self.config.use_framing else nn.Linear(4, 1)
+        in_dim = 5 if self.config.use_framing else 4
+
+        self.sum_weight = [nn.Linear(in_dim, 1).to(self.args.device) for i in range(self.config.initialize_steps)]
+        self.one_weight = nn.Linear(1, 1)
+        # self.weight_norm = nn.Softmax(dim=0)
 
         # eval cache (only available when do_test)
         self.cache_language = None
@@ -142,29 +147,35 @@ class SPWRNN(torch.nn.Module):
         # feature fusion for every timestamp and prediction
         prediction = []
         for i in range(seq_len):
-            # text-series result
-            result_l_s = self.language_fusion(history_seq[:, i, :], language)
-            # time-series result
-            result_a_s = self.abs_time_fusion(history_seq[:, i, :], abs_time_seq[:, i, :])
-            # topic-series result
-            result_t_s = self.topic_fusion(history_seq[:, i, :], topic)
-            # framing-series result
-            result_f_s = self.framing_fusion(history_seq[:, i, :], framing)
-            # grand fusion result
-            if self.config.use_framing:
-                features = [language, abs_time_seq[:, i, :], topic, framing]
-            else:
-                features = [language, abs_time_seq[:, i, :], topic]
-            fused_features = torch.cat(features, dim=1)
-            result_all = self.grand_fusion(history_seq[:, i, :], fused_features)
-            
-            # all results
-            if self.config.use_framing:
-                prediction_i = self.weighed_sum(torch.cat([result_l_s, result_a_s, result_t_s, result_f_s, result_all], dim=1))
-            else:
-                prediction_i = self.weighed_sum(torch.cat([result_l_s, result_a_s, result_t_s, result_all], dim=1))
+            if i < self.config.initialize_steps:
+                # text-series result
+                result_l_s = self.language_fusion(history_seq[:, i, :], language)
+                # time-series result
+                result_a_s = self.abs_time_fusion(history_seq[:, i, :], abs_time_seq[:, i, :])
+                # topic-series result
+                result_t_s = self.topic_fusion(history_seq[:, i, :], topic)
+                # framing-series result
+                result_f_s = self.framing_fusion(history_seq[:, i, :], framing)
+                # grand fusion result
+                if self.config.use_framing:
+                    features = [language, abs_time_seq[:, i, :], topic, framing]
+                else:
+                    features = [language, abs_time_seq[:, i, :], topic]
+                fused_features = torch.cat(features, dim=1)
+                result_all = self.grand_fusion(history_seq[:, i, :], fused_features)
+                
+                # all results
+                if self.config.use_framing:
+                    prediction_i = self.sum_weight[i](torch.cat([result_l_s, result_a_s, result_t_s, result_f_s, result_all], dim=1))
+                else:
+                    prediction_i = self.sum_weight[i](torch.cat([result_l_s, result_a_s, result_t_s, result_all], dim=1))
 
-            prediction.append(prediction_i)
+                prediction.append(prediction_i)
+            else:
+                # time-series result
+                result_a_s = self.abs_time_fusion(history_seq[:, i, :], abs_time_seq[:, i, :])
+                prediction_i = self.one_weight(result_a_s)
+                prediction.append(prediction_i)             
         
         prediction = torch.cat(prediction, dim=1)
         return prediction.unsqueeze(-1)
@@ -179,30 +190,92 @@ class SPWRNN(torch.nn.Module):
         history_seq, language, topic, abs_time_seq, framing = self.get_features(text, dec_input, others, 'VAL')
 
         # feature fusion for last timestamp and prediction
-
-        # text-series result
-        result_l_s = self.language_fusion(history_seq[:, -1, :], language)
-        # time-series result
-        result_a_s = self.abs_time_fusion(history_seq[:, -1, :], abs_time_seq[:, -1, :])
-        # topic-series result
-        result_t_s = self.topic_fusion(history_seq[:, -1, :], topic)
-        # framing-series result
-        result_f_s = self.framing_fusion(history_seq[:, -1, :], framing)
-        # grand fusion result
-        if self.config.use_framing:
-            features = [language, abs_time_seq[:, -1, :], topic, framing]
-        else:
-            features = [language, abs_time_seq[:, -1, :], topic]
-        fused_features = torch.cat(features, dim=1)
-        result_all = self.grand_fusion(history_seq[:, -1, :], fused_features)
+        if seq_len - 1 < self.config.initialize_steps:
+            # text-series result
+            result_l_s = self.language_fusion(history_seq[:, -1, :], language)
+            # time-series result
+            result_a_s = self.abs_time_fusion(history_seq[:, -1, :], abs_time_seq[:, -1, :])
+            # topic-series result
+            result_t_s = self.topic_fusion(history_seq[:, -1, :], topic)
+            # framing-series result
+            result_f_s = self.framing_fusion(history_seq[:, -1, :], framing)
+            # grand fusion result
+            if self.config.use_framing:
+                features = [language, abs_time_seq[:, -1, :], topic, framing]
+            else:
+                features = [language, abs_time_seq[:, -1, :], topic]
+            fused_features = torch.cat(features, dim=1)
+            result_all = self.grand_fusion(history_seq[:, -1, :], fused_features)
+            
+            # all results
+            if self.config.use_framing:
+                prediction = self.sum_weight[seq_len-1](torch.cat([result_l_s, result_a_s, result_t_s, result_f_s, result_all], dim=1))
+            else:
+                prediction = self.sum_weight[seq_len-1](torch.cat([result_l_s, result_a_s, result_t_s, result_all], dim=1))
         
-        # all results
-        if self.config.use_framing:
-            prediction = self.weighed_sum(torch.cat([result_l_s, result_a_s, result_t_s, result_f_s, result_all], dim=1))
         else:
-            prediction = self.weighed_sum(torch.cat([result_l_s, result_a_s, result_t_s, result_all], dim=1))
+            # time-series result
+            result_a_s = self.abs_time_fusion(history_seq[:, -1, :], abs_time_seq[:, -1, :])
+            prediction = self.one_weight(result_a_s)      
 
-        return prediction.unsqueeze(-1)  
+        return prediction.unsqueeze(-1)
+
+
+class SPWRNN_WO_L(torch.nn.Module):
+    def __init__(self, config, args) -> None:
+        super(SPWRNN_WO_L, self).__init__()
+        self.config = config
+        self.args = args
+
+        # series related model
+        self.series_model = torch.nn.LSTM(
+            input_size=1,
+            hidden_size=self.config.hidden_size,
+            batch_first=True,
+        )
+        self.series_vec_func = nn.ReLU()
+
+        # time related model
+        self.abs_time_fusion = FusionNet(self.config.hidden_size, self.config.time_size, self.config.medium_features, 1)
+
+        # final weighted results
+        self.one_weight = nn.Linear(1, 1)
+        # self.weight_norm = nn.Softmax(dim=0)
+
+    def get_features(self, text, dec_input, others, mode='TRAIN'):
+        """
+        Get features from raw input.
+        series_features(seq), language_features, topic_features, abs_time_features(seq), framing_features
+        """
+        seq_len = dec_input.shape[1]
+
+        # extract series features
+        history_features, (_, _) = self.series_model(dec_input)
+
+        # abs time features
+        abs_time = others['abs_time'][:, :seq_len]
+
+        return history_features, None, None, abs_time, None
+
+
+    def forward(self, text, dec_input, others):
+        """
+        Train forward.
+        Return all prediction. [batch_size, seq_len, 1]
+        """
+        seq_len = dec_input.shape[1]
+        history_seq, language, topic, abs_time_seq, framing = self.get_features(text, dec_input, others)
+
+        # feature fusion for every timestamp and prediction
+        prediction = []
+        for i in range(seq_len):
+            # time-series result
+            result_a_s = self.abs_time_fusion(history_seq[:, i, :], abs_time_seq[:, i, :])
+            prediction_i = self.one_weight(result_a_s)
+            prediction.append(prediction_i)             
+        
+        prediction = torch.cat(prediction, dim=1)
+        return prediction.unsqueeze(-1)
 
 
 class RNN(torch.nn.Module):
@@ -311,6 +384,8 @@ def getModel(modelName):
         'rnn': RNN,
         'tcn': TCN,
         'spwrnn': SPWRNN,
+        'spwrnn2': SPWRNN,
+        'spwrnn_wo_l': SPWRNN_WO_L,
     }
 
     assert modelName in MODEL_MAP.keys(), 'Not support ' + modelName

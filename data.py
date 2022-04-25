@@ -223,6 +223,8 @@ def getData(modelName):
         'rnn': WeiboDataTimeSeries,
         'tcn': WeiboDataTimeSeries,
         'spwrnn': WeiboDataTimeSeries,
+        'spwrnn2': WeiboDataTimeSeries,
+        'spwrnn_wo_l': WeiboDataTimeSeries,
     }
 
     assert modelName in MODEL_MAP.keys(), 'Not support ' + modelName

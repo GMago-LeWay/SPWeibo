@@ -11,6 +11,9 @@ class Config:
             'rnn': self.__RNN,
             'tcn': self.__TCN,
             'spwrnn': self.__SPWRNN,
+            'spwrnn2': self.__SPWRNN,
+            'spwrnn_wo_l': self.__SPWRNN_WO_L,
+            'framing': self.__FRAMING,
         }
 
         DATA_MAP = {
@@ -63,7 +66,7 @@ class Config:
 
             # 预训练模型设置
             'language_model': True,
-            'pretrained_model': 'pretrained_model/chinese-roberta-wwm-ext',
+            'pretrained_model': '/home/disk/disk2/lw/pretrained_model/chinese-roberta-wwm-ext',
 
             # 模型固定参数
             'topic_size': 384,
@@ -73,18 +76,20 @@ class Config:
             # 模型可调参数
             'hidden_size': 64,             # history
             'public_size': 128,             # public vector size
-            'language_proj_size': 16,
+            'language_proj_size': 8,
             'topic_proj_size': 16,
-            'medium_features': 16,
-            'use_framing': False,
+            'medium_features': 8,
+            'use_framing': True,
+            'initialize_steps': 2,
+            'topic_num': 10,
 
             # 学习参数设置
-            'max_epochs': 50,
-            'learning_rate_bert': 1e-05,
+            'max_epochs': 100,
+            'learning_rate_bert': 0.001,
             'learning_rate_other': 0.002,
-            'weight_decay_bert': 0.,
+            'weight_decay_bert': 0.0001,
             'weight_decay_other': 0.0001,         
-            'early_stop': 8,
+            'early_stop': 10,
 
             # 评估设置
             'KeyEval': '3.0h_Loss',
@@ -100,13 +105,14 @@ class Config:
 
             # 预训练模型设置
             'language_model': True,
-            'pretrained_model': 'pretrained_model/chinese-roberta-wwm-ext',
+            'pretrained_model': '/home/disk/disk2/lw/pretrained_model/chinese-roberta-wwm-ext',
 
             # 模型设置
             'topic_size': 384,
             'framing_size': 6,
             'time_size': 3,
-            'use_framing': False,
+            'use_framing': True,
+            'topic_num': 10,
 
             # 评估设置
             'KeyEval': '3.0h_Loss',
@@ -115,19 +121,86 @@ class Config:
             'eval_step': None,        # eval间隔的step数, None表示1eval/epoch
 
             # 学习参数设置
-            'early_stop': 8,
-            'max_epochs': 50,
+            'early_stop': 10,
+            'max_epochs': 100,
 
             # 调参
             'hidden_size': random.choice([32, 64, 128, 256]),
             'public_size': random.choice([32, 64, 128]),
             'language_proj_size': random.choice([8, 16, 32, 64]),
             'topic_proj_size': random.choice([8, 16, 32, 64]),
-            'medium_features': random.choice([8, 16, 32]),
+            'medium_features': random.choice([8, 16, 32, 64]),
+            'initialize_steps': random.choice([1, 2, 3, 4, 5]),
 
             'learning_rate_bert': random.choice([0, 0, 0, 0, 1e-05, 5e-5, 5e-4, 1e-3]),
             'learning_rate_other': random.choice([1e-4, 5e-4, 0.001, 0.002]),
-            'weight_decay_bert': random.choice([0, 0.0001]),
+            'weight_decay_bert': random.choice([0, 0.01, 0.001, 0.0001]),
+            'weight_decay_other': random.choice([0, 0.01, 0.001, 0.0001]),    
+        }
+
+        return TuneConfig if tune else Config
+
+
+    def __SPWRNN_WO_L(self, tune):
+        Config = {
+            # 标识符
+            'name': 'SPWRNN_WO_L',
+
+            # 预训练模型设置
+            'language_model': False,
+            'pretrained_model': '/home/disk/disk2/lw/pretrained_model/chinese-roberta-wwm-ext',
+
+            # 模型设置
+            'time_size': 3,
+
+            # 模型可调参数
+            'hidden_size': 64,             # history
+            'medium_features': 16,
+
+            # 学习参数设置
+            'max_epochs': 100,
+            'learning_rate_bert': 0.,
+            'learning_rate_other': 0.002,
+            'weight_decay_bert': 0.,
+            'weight_decay_other': 0.0001,         
+            'early_stop': 10,
+
+            # 评估设置
+            'KeyEval': '3.0h_Loss',
+            'scheduler_mode': 'min',
+            'scheduler_patience': 4,
+            'eval_step': None,        # eval间隔的step数, None表示1eval/epoch
+        }
+
+        TuneConfig = {     
+            # 不变参数
+            # 标识符
+            'name': 'SPWRNN_WO_L',
+
+            # 预训练模型设置
+            'language_model': False,
+            'pretrained_model': '/home/disk/disk2/lw/pretrained_model/chinese-roberta-wwm-ext',
+
+            # 模型设置
+            'time_size': 3,
+
+            # 评估设置
+            'KeyEval': '3.0h_Loss',
+            'scheduler_mode': 'min',
+            'scheduler_patience': 4,
+            'eval_step': None,        # eval间隔的step数, None表示1eval/epoch
+
+            # 学习参数设置
+            'early_stop': 10,
+            'max_epochs': 100,
+
+            # 调参
+            'hidden_size': random.choice([32, 64, 128, 256]),
+            'medium_features': random.choice([8, 16, 32, 64]),
+
+            'learning_rate_bert': random.choice([0,]),
+            'learning_rate_other': random.choice([1e-4, 5e-4, 0.001, 0.002, 0.005, 0.01]),
+            'weight_decay_bert': random.choice([0,]),
             'weight_decay_other': random.choice([0, 0.0001]),    
         }
 
@@ -141,7 +214,7 @@ class Config:
 
             # tokenizer设置
             'language_model': False,
-            'pretrained_model': 'pretrained_model/chinese-roberta-wwm-ext',
+            'pretrained_model': '/home/disk/disk2/lw/pretrained_model/chinese-roberta-wwm-ext',
 
             # 模型设置
             # 'use_prompt': False,
@@ -170,7 +243,7 @@ class Config:
 
             # tokenizer设置
             'language_model': False,
-            'pretrained_model': 'pretrained_model/chinese-roberta-wwm-ext',
+            'pretrained_model': '/home/disk/disk2/lw/pretrained_model/chinese-roberta-wwm-ext',
 
             # 模型设置
             
@@ -204,7 +277,7 @@ class Config:
 
             # tokenizer设置
             'language_model': False,
-            'pretrained_model': 'pretrained_model/chinese-roberta-wwm-ext',
+            'pretrained_model': '/home/disk/disk2/lw/pretrained_model/chinese-roberta-wwm-ext',
 
             # 模型设置
             # 'use_prompt': False,
@@ -234,7 +307,7 @@ class Config:
 
             # tokenizer设置
             'language_model': False,
-            'pretrained_model': 'pretrained_model/chinese-roberta-wwm-ext',
+            'pretrained_model': '/home/disk/disk2/lw/pretrained_model/chinese-roberta-wwm-ext',
 
             # 模型设置
 
@@ -258,6 +331,65 @@ class Config:
 
             'learning_rate_other': random.choice([1e-4, 5e-4, 0.001, 0.002, 0.005]),
             'weight_decay_other': random.choice([0, 0.0001]),    
+        }
+
+        return TuneConfig if tune else Config
+
+
+    def __FRAMING(self, tune):
+
+        Config = {
+            # 标识符
+            'name': 'FRAMING',
+
+            # 预训练模型设置
+            'language_model': True,
+            'pretrained_model': '/home/disk/disk2/lw/pretrained_model/chinese-roberta-wwm-ext',
+
+
+            # 模型可调参数
+            'dropout': 0.2,
+
+            # 学习参数设置
+            'max_epochs': 100,
+            'learning_rate_bert': 1e-04,
+            'learning_rate_other': 0.002,
+            'weight_decay_bert': 0.0001,
+            'weight_decay_other': 0.,         
+            'early_stop': 8,
+
+            # 评估设置
+            'KeyEval': 'recall_avg',
+            'scheduler_mode': 'max',
+            'scheduler_patience': 4,
+            'eval_step': None,        # eval间隔的step数, None表示1eval/epoch
+        }
+
+        TuneConfig = {     
+            # 不变参数
+            # 标识符
+            'name': 'FRAMING',
+
+            # 预训练模型设置
+            'language_model': True,
+            'pretrained_model': '/home/disk/disk2/lw/pretrained_model/chinese-roberta-wwm-ext',
+
+            # 评估设置
+            'KeyEval': random.choice(['acc_avg', 'recall_avg', 'f1_avg']), 
+            'scheduler_mode': 'max',
+            'scheduler_patience': 4,
+            'eval_step': None,        # eval间隔的step数, None表示1eval/epoch
+
+            # 学习参数设置
+            'early_stop': 8,
+            'max_epochs': 100,
+
+            # 调参
+            'dropout': random.choice([0.1, 0.2, 0.3]), 
+            'learning_rate_bert': random.choice([1e-05, 5e-5, 5e-4, 1e-3]),
+            'learning_rate_other': random.choice([1e-4, 5e-4, 0.001, 0.002, 0.005, 0.01]),
+            'weight_decay_bert': random.choice([0, 0.0001, 0.001, 0.01]),
+            'weight_decay_other': random.choice([0, 0.0001, 0.001, 0.01]),    
         }
 
         return TuneConfig if tune else Config

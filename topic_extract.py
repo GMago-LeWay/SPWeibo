@@ -9,16 +9,18 @@ import pickle
 
 
 class TopicExtractor:
-    def __init__(self, data_dir) -> None:
+    def __init__(self, data_dir, cls_num) -> None:
         """
         data_dir: Weibo Dataset Directory.
         """
         self.data_dir = data_dir
+        self.cls_num = cls_num
         self.csv_file = os.path.join(data_dir, "content.csv")
-        self.topic_file = os.path.join(data_dir, "topic.pkl")
-        self.content_topic_file = os.path.join(data_dir, "content_topic.csv")
+        self.topic_file = os.path.join(data_dir, f"topic{cls_num}.pkl")
+        self.content_topic_file = os.path.join(data_dir, f"content_topic{cls_num}.csv")
 
-    def extract(self, topic_num=None, random_seed=1000):
+    def extract(self, random_seed=1000):
+        topic_num = self.cls_num - 1
         df = pd.read_csv(self.csv_file)
         docs_raw = df['content'].tolist()
 
@@ -60,7 +62,7 @@ class TopicExtractor:
         topic_list = {}
         for topic_id in freq["Topic"].tolist():
             topic_ = topic_model.get_topic(topic_id)
-            assert len(topic_) == 10
+            assert len(topic_) == self.cls_num
             topic_list[topic_id] = {"words": [word[0] for word in topic_], 
                 "words_prob": np.array([word[1] for word in topic_]),
                 "embedding": np.array(topic_model.topic_embeddings[topic_id+1])}
