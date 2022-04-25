@@ -41,7 +41,7 @@ class Config:
             'data_dir': "/home/disk/disk2/lw/covid-19-weibo-processed/renminribao",
             'load_from_temp': True,
 
-            'interval': 3600,        # 计数时间间隔 600, 900, 1200, 1800, 3600s
+            'interval': 900,        # 计数时间间隔 600, 900, 1200, 1800, 3600s
             'min_repost': 100,      # 最低转发次数
             'max_repost': 10000,    # 最大转发次数
             'observe_time': [0*3600, 1*3600, 2*3600, 3*3600, 6*3600],  # 观察时间长度
@@ -111,7 +111,7 @@ class Config:
             'topic_size': 384,
             'framing_size': 6,
             'time_size': 3,
-            'use_framing': False,
+            'use_framing': True,
             'topic_num': 10,
 
             # 评估设置
@@ -130,12 +130,12 @@ class Config:
             'language_proj_size': random.choice([8, 16, 32, 64]),
             'topic_proj_size': random.choice([8, 16, 32, 64]),
             'medium_features': random.choice([8, 16, 32, 64]),
-            'initialize_steps': random.choice([1, 2, 3]),
+            'initialize_steps': random.choice([1, 2, 3, 4, 5]),
 
             'learning_rate_bert': random.choice([0, 0, 0, 0, 1e-05, 5e-5, 5e-4, 1e-3]),
             'learning_rate_other': random.choice([1e-4, 5e-4, 0.001, 0.002]),
-            'weight_decay_bert': random.choice([0, 0.0001]),
-            'weight_decay_other': random.choice([0, 0.0001]),    
+            'weight_decay_bert': random.choice([0, 0.01, 0.001, 0.0001]),
+            'weight_decay_other': random.choice([0, 0.01, 0.001, 0.0001]),    
         }
 
         return TuneConfig if tune else Config
