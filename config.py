@@ -28,9 +28,21 @@ class Config:
 
 
     def solve_conflict(self):
-        # model preconfig
+
         if self.modelName == 'spwrnn_beta':
-            self.args.use_predicted_framing = False
+            # model preconfig conflict
+            if self.args.use_framing == False:
+                self.args.use_predicted_framing = False
+                self.args.constant_framing = True
+                self.args.framing_loss_weight = 0
+            else:        # use framing
+                if self.args.use_predicted_framing == True:
+                    self.args.constant_framing = True
+                    self.args.framing_loss_weight = 0
+                else:    # use framing but not predicted from framing model
+                    if self.args.constant_framing == True:  # use manual labeled framing
+                        self.args.framing_loss_weight = 0
+
         return
 
     
@@ -51,7 +63,7 @@ class Config:
             'observe_time': [0*3600, 1*3600, 2*3600, 3*3600, 6*3600],  # 观察时间长度
             'valid_time': 24*3600,    # 预测时间长度
             'max_seq_len': 256,     # 模型最大长度
-            'topic_num': 10,        # 主题的个数
+            'topic_num': 219,        # 主题的个数
 
             # 数据集设置
             'validate': 0.1,
@@ -82,7 +94,7 @@ class Config:
             'text_cut': 200,       # 文本截断长度
 
             # 是否加载framing的预测结果
-            'use_predicted_framing': False,            
+            'use_predicted_framing': random.choice([False, True]),            
         }
 
         return dataTuneConfig if tune else dataConfig
@@ -164,8 +176,8 @@ class Config:
 
             'learning_rate_bert': random.choice([0, 0, 0, 0, 1e-05, 5e-5, 5e-4, 1e-3]),
             'learning_rate_other': random.choice([1e-4, 5e-4, 0.001, 0.002]),
-            'weight_decay_bert': random.choice([0, 0.0001]),
-            'weight_decay_other': random.choice([0, 0.0001]),    
+            'weight_decay_bert': random.choice([0, 0.001, 0.0001]),
+            'weight_decay_other': random.choice([0, 0.001, 0.0001]),    
         }
 
         return TuneConfig if tune else Config
@@ -194,7 +206,11 @@ class Config:
             'topic_proj_size': 16,
             'medium_features': 8,
             'use_framing': True,
+            'constant_framing': False,
             'initialize_steps': 2,
+            'unique_fusion_weights': False,
+            
+            'framing_loss_weight': 1,
 
             # 学习参数设置
             'max_epochs': 40,
@@ -205,7 +221,7 @@ class Config:
             'early_stop': 6,
 
             # 评估设置
-            'KeyEval': '3.0h_Loss',
+            'KeyEval': '3.0h_mse',
             'scheduler_mode': 'min',
             'scheduler_patience': 3,
             'eval_step': None,        # eval间隔的step数, None表示1eval/epoch
@@ -226,9 +242,10 @@ class Config:
             'framing_size': 6,
             'time_size': 3,
             'use_framing': True,
+            'constant_framing': random.choice([False, True]),
 
             # 评估设置
-            'KeyEval': '3.0h_Loss',
+            'KeyEval': random.choice(['2.0h_mse', '3.0h_mse', '6.0h_mse']),
             'scheduler_mode': 'min',
             'scheduler_patience': 3,
             'eval_step': None,        # eval间隔的step数, None表示1eval/epoch
@@ -243,12 +260,14 @@ class Config:
             'language_proj_size': random.choice([8, 16, 32, 64]),
             'topic_proj_size': random.choice([8, 16, 32, 64]),
             'medium_features': random.choice([8, 16, 32, 64]),
-            'initialize_steps': random.choice([1, 2, 3]),
+            'initialize_steps': random.choice([1, 2, 3, 200]),
+            'unique_fusion_weights': random.choice([False, True]),
+            'framing_loss_weight': random.choice([0.5, 0.8, 1, 1.2, 1.5, 2]),
 
-            'learning_rate_bert': random.choice([0, 0, 0, 0, 1e-05, 5e-5, 5e-4, 1e-3]),
+            'learning_rate_bert': random.choice([0, 1e-05, 5e-5, 5e-4, 1e-3]),
             'learning_rate_other': random.choice([1e-4, 5e-4, 0.001, 0.002]),
-            'weight_decay_bert': random.choice([0, 0.0001]),
-            'weight_decay_other': random.choice([0, 0.0001]),    
+            'weight_decay_bert': random.choice([0, 0.001, 0.0001]),
+            'weight_decay_other': random.choice([0, 0.001, 0.0001]),      
         }
 
         return TuneConfig if tune else Config
