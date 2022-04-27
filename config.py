@@ -223,6 +223,7 @@ class Config:
             # 评估设置
             'KeyEval': '3.0h_mse',
             'scheduler_mode': 'min',
+            'scheduler_factor': 0.2,
             'scheduler_patience': 3,
             'eval_step': None,        # eval间隔的step数, None表示1eval/epoch
         }
@@ -245,14 +246,15 @@ class Config:
             'constant_framing': random.choice([False, True]),
 
             # 评估设置
-            'KeyEval': random.choice(['2.0h_mse', '3.0h_mse', '6.0h_mse']),
+            'KeyEval': random.choice(['2.0h_mse']),
             'scheduler_mode': 'min',
+            'scheduler_factor': random.choice([0.1, 0.25]),
             'scheduler_patience': 3,
             'eval_step': None,        # eval间隔的step数, None表示1eval/epoch
 
             # 学习参数设置
-            'early_stop': 6,
-            'max_epochs': 40,
+            'early_stop': 8,
+            'max_epochs': 50,
 
             # 调参
             'hidden_size': random.choice([32, 64, 128, 256]),
@@ -264,10 +266,10 @@ class Config:
             'unique_fusion_weights': random.choice([False, True]),
             'framing_loss_weight': random.choice([0.5, 0.8, 1, 1.2, 1.5, 2]),
 
-            'learning_rate_bert': random.choice([0, 1e-05, 5e-5, 5e-4, 1e-3]),
-            'learning_rate_other': random.choice([1e-4, 5e-4, 0.001, 0.002]),
-            'weight_decay_bert': random.choice([0, 0.001, 0.0001]),
-            'weight_decay_other': random.choice([0, 0.001, 0.0001]),      
+            'learning_rate_bert': random.choice([0, 5e-5, 1e-4, 5e-4, 1e-3, 5e-3, 1e-2]),
+            'learning_rate_other': random.choice([0.001, 0.002, 0.005]),
+            'weight_decay_bert': random.choice([0, 0.0001]),
+            'weight_decay_other': random.choice([0, 0.0001]),      
         }
 
         return TuneConfig if tune else Config

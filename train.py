@@ -231,12 +231,12 @@ class SPWRNN_WITH_FRAMING():
             {'params': model_params_other, 'weight_decay': self.config.weight_decay_other, 'lr': self.config.learning_rate_other}
         ]
 
-        optimizer = optim.Adam(optimizer_grouped_parameters)
+        optimizer = optim.AdamW(optimizer_grouped_parameters)
 
         # SCHEDULER
         scheduler = ReduceLROnPlateau(optimizer,
                     mode=self.config.scheduler_mode,
-                    factor=0.5, patience=self.config.scheduler_patience, verbose=True)
+                    factor=self.config.scheduler_factor, patience=self.config.scheduler_patience, verbose=True)
         # initilize results
         epochs = 0
         valid_num, best_valid_num = 0, 0

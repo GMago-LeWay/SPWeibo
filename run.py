@@ -43,6 +43,10 @@ def parse_args():
                         help='True if run infer task.')
     parser.add_argument('--load', type=str, default='results/models/spw.pth',
                         help='model to be loaded in infer task.')
+    parser.add_argument('--log_order', type=int, default=0,
+                        help='set log file order and model file order.')
+    parser.add_argument('--csv_order', type=int, default=0,
+                        help='set result csv file order.')
     return parser.parse_args()
 
 
@@ -118,7 +122,7 @@ def run_task(args, seeds, config):
     logging.info('本轮效果均值：%s, 标准差：%s' % (result[config.KeyEval], result[config.KeyEval + '-std']))
 
     mode = "tune" if args.tune else "single"
-    save_path = os.path.join(args.res_save_dir, f'{args.modelName}-{args.dataset}-{mode}.csv')
+    save_path = os.path.join(args.res_save_dir, f'{args.modelName}-{args.dataset}-{mode}-{args.csv_order}.csv')
     if not os.path.exists(args.res_save_dir):
         os.makedirs(args.res_save_dir)
     if os.path.exists(save_path):
@@ -147,8 +151,8 @@ def run_tune(args, seeds, tune_times=50):
     for i in range(tune_times):
         logging.info('-----------------------------------Tune(%d/%d)----------------------------' % (i+1, tune_times))
         # 加载之前的结果参数以去重
-        save_path = os.path.join(args.res_save_dir, f'{args.modelName}-{args.dataset}-tune.csv')
-        if i == 0 and os.path.exists(save_path):
+        save_path = os.path.join(args.res_save_dir, f'{args.modelName}-{args.dataset}-tune-{args.csv_order}.csv')
+        if os.path.exists(save_path):
             df = pd.read_csv(save_path)
             for j in range(len(df)):
                 has_debuged.append(df.loc[j, "Config"])
@@ -172,17 +176,17 @@ if __name__ == '__main__':
     args = parse_args()
     if not os.path.exists('log'):
         os.makedirs('log')
-    file_name = f'log/{args.modelName}_tune.log' if args.tune else f'log/{args.modelName}_reg.log'
+    file_name = f'log/{args.modelName}_tune_{args.log_order}.log' if args.tune else f'log/{args.modelName}_reg_{args.log_order}.log'
     logging.basicConfig(filename=file_name, level=logging.INFO)
     args.device = 'cuda:'+ str(args.device)
     if args.infer:
         configure = Config(modelName=args.modelName, dataset=args.dataset).get_config()
         run_eval(args=args, config=configure)
     elif not args.tune:
-        args.model_save_dir = os.path.join(args.model_save_dir, 'regression')
+        args.model_save_dir = os.path.join(args.model_save_dir, f'regression_{args.log_order}')
         configure = Config(modelName=args.modelName, dataset=args.dataset).get_config()
         run_task(args=args, seeds=[111], config=configure)
     else:
-        args.model_save_dir = os.path.join(args.model_save_dir, 'tune')
+        args.model_save_dir = os.path.join(args.model_save_dir, f'tune_{args.log_order}')
         run_tune(args=args, seeds=[111], tune_times=100)
 
