@@ -1,6 +1,7 @@
 import torch
 from transformers import AutoConfig, AutoModel, AutoTokenizer
 import torch.nn as nn
+import torch.nn.functional as F
 
 
 class FusionNet2(torch.nn.Module):
@@ -38,7 +39,14 @@ class SPWRNN_BETA(torch.nn.Module):
         self.language_model = AutoModel.from_pretrained(self.config.pretrained_model)
         self.language_model_config = AutoConfig.from_pretrained(self.config.pretrained_model)
         self.language_hidden_size = self.language_model_config.hidden_size
-        self.language_fusion = FusionNet2(self.config.hidden_size, self.config.language_proj_size, self.config.medium_features, 1)
+        # calc dim of fusion module input
+        if config.features_proj:
+            language_fusion_dim = self.config.language_proj_size
+            topic_fusion_dim = self.config.topic_proj_size  
+        else:
+            language_fusion_dim = self.language_hidden_size
+            topic_fusion_dim = self.config.topic_size           
+        self.language_fusion = FusionNet2(self.config.hidden_size, language_fusion_dim, self.config.medium_features, 1)
         # sentence vector extract
         self.public_vector = nn.Parameter(torch.randn((self.config.public_size)))
         self.word_key = nn.Linear(self.language_hidden_size, self.config.public_size)
@@ -60,7 +68,7 @@ class SPWRNN_BETA(torch.nn.Module):
         # topics related model
         self.topic_proj = nn.Linear(self.config.topic_size, self.config.topic_proj_size)
         self.topic_vec_func = nn.ReLU()
-        self.topic_fusion = FusionNet2(self.config.hidden_size, self.config.topic_proj_size, self.config.medium_features, 1)
+        self.topic_fusion = FusionNet2(self.config.hidden_size, topic_fusion_dim, self.config.medium_features, 1)
 
         # framing related model
         self.framing_fusion = FusionNet2(self.config.hidden_size, self.config.framing_size, self.config.medium_features, 1)
@@ -69,7 +77,7 @@ class SPWRNN_BETA(torch.nn.Module):
         self.abs_time_fusion = FusionNet2(self.config.hidden_size, self.config.time_size, self.config.medium_features, 1)
 
         # grand fusion related model
-        auxiliary_dim = self.config.language_proj_size + self.config.topic_proj_size + self.config.time_size
+        auxiliary_dim = language_fusion_dim + topic_fusion_dim + self.config.time_size
         if self.config.use_framing:
             auxiliary_dim += self.config.framing_size 
         self.grand_fusion = FusionNet2(self.config.hidden_size, auxiliary_dim, self.config.medium_features, 1)
@@ -135,14 +143,20 @@ class SPWRNN_BETA(torch.nn.Module):
         scores = self.softmax(scores)
         interest_text = (text_representation[:, 1:, :] * scores.unsqueeze(-1)).sum(dim=1)
         # proj of text
-        text_features = self.language_vec_func(self.language_proj(interest_text))
-
+        if self.config.features_proj:
+            text_features = self.language_vec_func(self.language_proj(interest_text))
+        else:
+            text_features = self.language_vec_func(interest_text)
+        
         # auto framing
         framing_features = self.framing_fc(text_representation[:, 0, :])
         framing_features = self.framing_vec_func(framing_features)
 
         # proj of topics
-        topic_features = self.topic_vec_func(self.topic_proj(others['topics']))
+        if self.config.features_proj:
+            topic_features = self.topic_vec_func(self.topic_proj(others['topics']))
+        else:
+            topic_features = others['topics']
 
         if mode == 'VAL':
             self.write_cache(text_features, topic_features, framing_features)
@@ -203,7 +217,7 @@ class SPWRNN_BETA(torch.nn.Module):
                 prediction.append(prediction_i)             
         
         prediction = torch.cat(prediction, dim=1)
-        return prediction.unsqueeze(-1), framing
+        return prediction.unsqueeze(-1) + dec_input, framing
 
 
     def predict_next(self, text, dec_input, others):
@@ -254,4 +268,4 @@ class SPWRNN_BETA(torch.nn.Module):
             result_a_s = self.abs_time_fusion(history_seq[:, -1, :], abs_time_seq[:, -1, :])
             prediction = self.one_weight(result_a_s)      
 
-        return prediction.unsqueeze(-1), framing
+        return F.relu(prediction.unsqueeze(-1)) + dec_input[:, -1:, :], framing

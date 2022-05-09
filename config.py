@@ -4,7 +4,7 @@ import warnings
 
 
 class Config:
-    def __init__(self, modelName, dataset, tune=False) -> None:
+    def __init__(self, modelName, dataset, tune=False, preconfig:dict=None) -> None:
         self.modelName = modelName
 
         MODEL_MAP = {
@@ -23,32 +23,53 @@ class Config:
 
         commonArgs = MODEL_MAP[modelName](tune)
         dataArgs = DATA_MAP[dataset](tune)
+        self.tune = tune
+        self.preconfig = preconfig
 
-        self.args = Storage({**commonArgs, **dataArgs})
+        self.configs = Storage({**commonArgs, **dataArgs})
 
 
     def solve_conflict(self):
+        ## change some config to the preset settings from self.preconfig
+        if self.preconfig:
+            for key in self.preconfig:
+                if key in self.configs:
+                    self.configs[key] = self.preconfig[key]
+
+        ## model config internal conflict
+        if self.modelName == 'rnn' or self.modelName == 'tcn':
+            # fix the unused data setting
+            self.configs.topic_num = 100
+            self.configs.use_predicted_framing = False
 
         if self.modelName == 'spwrnn_beta':
             # model preconfig conflict
-            if self.args.use_framing == False:
-                self.args.use_predicted_framing = False
-                self.args.constant_framing = True
-                self.args.framing_loss_weight = 0
-            else:        # use framing
-                if self.args.use_predicted_framing == True:
-                    self.args.constant_framing = True
-                    self.args.framing_loss_weight = 0
-                else:    # use framing but not predicted from framing model
-                    if self.args.constant_framing == True:  # use manual labeled framing
-                        self.args.framing_loss_weight = 0
+            if self.configs.use_framing == False:    
+                ## if not use framing
+                self.configs.use_predicted_framing = False
+                self.configs.constant_framing = True
+                self.configs.framing_loss_weight = 0
+            else:        
+                ## use framing
+                if self.configs.constant_framing == False: 
+                    ## use framing to supervise
+                    self.configs.use_predicted_framing = False
+                
+                else:       
+                    ## use constant framing data as input
+                    self.configs.framing_loss_weight = 0
+
+            # projection conflict
+            if self.tune and self.configs.features_proj == False:
+                self.configs.language_proj_size = 1
+                self.configs.topic_proj_size = 1
 
         return
 
     
     def get_config(self):
         self.solve_conflict()
-        return self.args
+        return self.configs
 
     def __RMRB(self, tune):
 
@@ -63,7 +84,7 @@ class Config:
             'observe_time': [0*3600, 1*3600, 2*3600, 3*3600, 6*3600],  # 观察时间长度
             'valid_time': 24*3600,    # 预测时间长度
             'max_seq_len': 256,     # 模型最大长度
-            'topic_num': 219,        # 主题的个数
+            'topic_num': 100,        # 主题的个数
 
             # 数据集设置
             'validate': 0.1,
@@ -72,7 +93,7 @@ class Config:
             'text_cut': 200,       # 文本截断长度
 
             # 是否加载framing的预测结果
-            'use_predicted_framing': False,
+            'use_predicted_framing': True,
         }
 
         dataTuneConfig = {
@@ -200,30 +221,32 @@ class Config:
             'time_size': 3,
 
             # 模型可调参数
-            'hidden_size': 64,             # history
+            'hidden_size': 16,             # history
             'public_size': 128,             # public vector size
-            'language_proj_size': 8,
-            'topic_proj_size': 16,
-            'medium_features': 8,
+            'language_proj_size': 16,
+            'features_proj': True,
+            'topic_proj_size': 8,
+            'medium_features': 64,
             'use_framing': True,
-            'constant_framing': False,
-            'initialize_steps': 2,
+            'constant_framing': True,
+            'initialize_steps': 4,
             'unique_fusion_weights': False,
             
-            'framing_loss_weight': 1,
+            'framing_loss_weight': 0.,
+            'initialize_steps_weight': 20.,
 
             # 学习参数设置
-            'max_epochs': 40,
-            'learning_rate_bert': 0.001,
-            'learning_rate_other': 0.002,
-            'weight_decay_bert': 0.0001,
-            'weight_decay_other': 0.0001,         
-            'early_stop': 6,
+            'max_epochs': 50,
+            'learning_rate_bert': 0.0005,
+            'learning_rate_other': 0.001,
+            'weight_decay_bert': 0.,
+            'weight_decay_other': 0.,         
+            'early_stop': 8,
 
             # 评估设置
-            'KeyEval': '3.0h_mse',
+            'KeyEval': '2.0h_SeriesLoss',
             'scheduler_mode': 'min',
-            'scheduler_factor': 0.2,
+            'scheduler_factor': 0.25,
             'scheduler_patience': 3,
             'eval_step': None,        # eval间隔的step数, None表示1eval/epoch
         }
@@ -246,7 +269,7 @@ class Config:
             'constant_framing': random.choice([False, True]),
 
             # 评估设置
-            'KeyEval': random.choice(['2.0h_mse']),
+            'KeyEval': random.choice(['1.0h_mse', '1.0h_SeriesLoss', '2.0h_mse', '2.0h_SeriesLoss']),
             'scheduler_mode': 'min',
             'scheduler_factor': random.choice([0.1, 0.25]),
             'scheduler_patience': 3,
@@ -257,14 +280,16 @@ class Config:
             'max_epochs': 50,
 
             # 调参
-            'hidden_size': random.choice([32, 64, 128, 256]),
+            'hidden_size': random.choice([16, 32, 64, 128]),
             'public_size': random.choice([32, 64, 128]),
+            'features_proj': random.choice([True, False]),
             'language_proj_size': random.choice([8, 16, 32, 64]),
             'topic_proj_size': random.choice([8, 16, 32, 64]),
             'medium_features': random.choice([8, 16, 32, 64]),
-            'initialize_steps': random.choice([1, 2, 3, 200]),
+            'initialize_steps': random.choice([1, 2, 3, 4]),
             'unique_fusion_weights': random.choice([False, True]),
             'framing_loss_weight': random.choice([0.5, 0.8, 1, 1.2, 1.5, 2]),
+            'initialize_steps_weight': random.choice([1., 5., 10., 20., 40.]),
 
             'learning_rate_bert': random.choice([0, 5e-5, 1e-4, 5e-4, 1e-3, 5e-3, 1e-2]),
             'learning_rate_other': random.choice([0.001, 0.002, 0.005]),
@@ -415,16 +440,16 @@ class Config:
 
             # 模型设置
             # 'use_prompt': False,
-            'kernel': 5,
-            'layer': 4,
-            'dropout': 0.2,
+            'kernel': 7,
+            'layer': 5,
+            'dropout': 0.1,
 
             # 学习参数设置
             'max_epochs': 50,
             'learning_rate_bert': 1e-05,
-            'learning_rate_other': 0.002,
+            'learning_rate_other': 0.001,
             'weight_decay_bert': 0.,
-            'weight_decay_other': 0.0001,         
+            'weight_decay_other': 0.,         
             'early_stop': 8,
 
             # 评估设置

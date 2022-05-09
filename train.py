@@ -2,6 +2,7 @@ import os
 import time
 import logging
 import argparse
+from turtle import forward
 import numpy as np
 from glob import glob
 from tqdm import tqdm
@@ -104,7 +105,7 @@ class SPWRNN():
                         # save best model
                         isBetter = cur_valid <= (best_valid - 1e-6) if min_or_max == 'min' else cur_valid >= (best_valid + 1e-6)
                         # save best model
-                        if isBetter:
+                        if epochs == 1 or isBetter:
                             # save model
                             best_valid, best_valid_num = cur_valid, valid_num
                             torch.save(model.cpu().state_dict(), self.args.model_save_path)
@@ -144,7 +145,7 @@ class SPWRNN():
                             if self.config.name == 'SPWRNN':
                                 new_prediction = model.predict_next(text=texts, dec_input=dec_inputs, others=batch_data['others'])
                             else:
-                                prediction = model(text=texts, dec_input=dec_inputs, others=batch_data['others'])
+                                prediction = model(text=texts, dec_input=dec_inputs, others=batch_data['others'], eval=True)
                                 new_prediction = prediction[:, -1:, :]
                             outputs.append(new_prediction)
                             dec_inputs = torch.cat([dec_inputs, new_prediction], dim=1)
@@ -207,11 +208,35 @@ class SPWRNN():
         return predictions.numpy()
 
 
+class WeightedMSE(nn.Module):
+    def __init__(self, args, config) -> None:
+        super(WeightedMSE, self).__init__()
+        self.high_weight_steps = config.initialize_steps
+        self.all_steps = int(config.valid_time / config.interval)
+        high_weight = config.initialize_steps_weight
+        # normalize weight
+        total_weight = high_weight * self.high_weight_steps + 1. * (self.all_steps - self.high_weight_steps)
+        self.weight_h = self.all_steps * high_weight / total_weight
+        self.weight_l = self.all_steps / total_weight
+
+        weight_constant = torch.FloatTensor([self.weight_h] * self.high_weight_steps + [self.weight_l] * (self.all_steps - self.high_weight_steps)).to(args.device)
+        self.weight_constant = weight_constant.unsqueeze(0)
+
+        self.loss = nn.MSELoss()
+
+    def forward(self, pred, true):
+        weight = self.weight_constant.expand(pred.shape[0], self.all_steps)
+
+        pred = pred * weight
+        true = true * weight
+        return self.loss(pred, true)
+
+
 class SPWRNN_WITH_FRAMING():
     def __init__(self, args, config):
         self.args = args
         self.config = config
-        self.criterion = nn.MSELoss()
+        self.criterion = WeightedMSE(args, config)
         self.criterion_framing = nn.MSELoss()
         self.metrics = Metrics().get_metrics(self.args.modelName)
         self.metrics_framing = Metrics().get_metrics('framing')
@@ -377,30 +402,31 @@ class SPWRNN_WITH_FRAMING():
         y_pred = []
         with torch.no_grad():
             for batch_data in dataloader:
+                labels = batch_data['labels'].to(self.args.device)
                 texts = batch_data['texts'].to(self.args.device)
-                dec_inputs = torch.zeros((texts.shape[0], 1, 1)).to(self.args.device)
+                dec_inputs = batch_data['dec_inputs'].to(self.args.device)
                 for key in batch_data['others']:
                     batch_data['others'][key] = batch_data['others'][key].to(self.args.device)
-                # inference
-                out_len = 0
+                
+                # calc observing steps
+                steps = 0
+                dec_inputs = dec_inputs[:, 0:steps+1, :]
+                
+                out_len = steps
                 outputs = []
-                while out_len < self.config.seq_dim:
-                    if self.config.name == 'SPWRNN':
-                        new_prediction = model.predict_next(text=texts, dec_input=dec_inputs, others=batch_data['others'])
-                    else:
-                        prediction = model(text=texts, dec_input=dec_inputs, others=batch_data['others'])
-                        new_prediction = prediction[:, -1:, :]
+                # inference
+                while out_len < labels.shape[1]:
+                    new_prediction, framing = model.predict_next(text=texts, dec_input=dec_inputs, others=batch_data['others'])
                     outputs.append(new_prediction)
                     dec_inputs = torch.cat([dec_inputs, new_prediction], dim=1)
                     out_len += 1
                 # rm cache of current weibo
-                if self.config.name == 'SPWRNN':
-                    model.clear_eval_cache()
+                model.clear_eval_cache()
                 
                 outputs = torch.cat(outputs, dim=1)
                 y_pred.append(outputs.cpu())
         predictions = torch.cat(y_pred)
-        return predictions.numpy()
+        return predictions.squeeze(-1).numpy()
 
 
 def getTrain(modelName):

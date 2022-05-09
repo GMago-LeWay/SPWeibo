@@ -2,7 +2,7 @@ import torch
 from transformers import AutoConfig, AutoModel, AutoTokenizer
 import torch.nn as nn
 import math
-import torch.functional as F
+import torch.nn.functional as F
 from torch.nn.utils import weight_norm
 from model_beta import SPWRNN_BETA
 
@@ -259,7 +259,7 @@ class SPWRNN_WO_L(torch.nn.Module):
         return history_features, None, None, abs_time, None
 
 
-    def forward(self, text, dec_input, others):
+    def forward(self, text, dec_input, others, eval=False):
         """
         Train forward.
         Return all prediction. [batch_size, seq_len, 1]
@@ -276,7 +276,10 @@ class SPWRNN_WO_L(torch.nn.Module):
             prediction.append(prediction_i)             
         
         prediction = torch.cat(prediction, dim=1)
-        return prediction.unsqueeze(-1)
+        if eval:
+            return F.relu(prediction.unsqueeze(-1)) + dec_input
+        else:
+            return prediction.unsqueeze(-1) + dec_input
 
 
 class RNN(torch.nn.Module):
@@ -292,13 +295,16 @@ class RNN(torch.nn.Module):
         )
         self.predict_fc = torch.nn.Linear(self.config.hidden_size, 1)
 
-    def forward(self, text, dec_input, others=None):
+    def forward(self, text, dec_input, others=None, eval=False):
         representation, _ = self.rnn_model(dec_input)
         batch_size, time_len, _ = representation.shape
         representation = representation.reshape(batch_size*time_len, -1)
         predict = self.predict_fc(representation)
 
-        return predict.view(batch_size, time_len, 1)
+        if eval:
+            return F.relu(predict.view(batch_size, time_len, 1)) + dec_input
+        else:
+            return predict.view(batch_size, time_len, 1) + dec_input
 
 
 class Chomp1d(nn.Module):
@@ -373,7 +379,7 @@ class TCN(torch.nn.Module):
             dropout=config.dropout,
         )
 
-    def forward(self, text, dec_input, others=None):
+    def forward(self, text, dec_input, others=None, eval=False):
         x = dec_input.permute(0, 2, 1)
         out = self.tcn_model(x)
         out = out.permute(0, 2, 1)

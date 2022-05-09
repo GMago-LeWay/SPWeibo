@@ -218,8 +218,8 @@ class WeiboDataTimeSeries(Dataset):
         return [[texts[i], log_function(add(sequences[i])), daytimes[i], topic_embeddings[i], framings[i], predicted_framings[i]] for i in range(len(texts))]
 
 
-    def get_train_val_dataloader(self):
-        gross_data = self.get_data()
+    def get_train_val_dataloader(self, data=None):
+        gross_data = data if data else self.get_data() 
         test_num = int(self.config.test * len(gross_data))
         val_num = int(self.config.validate * len(gross_data))
         test = gross_data[-test_num:]
