@@ -37,7 +37,7 @@ class Config:
                     self.configs[key] = self.preconfig[key]
 
         ## model config internal conflict
-        if self.modelName == 'rnn' or self.modelName == 'tcn':
+        if self.modelName == 'rnn' or self.modelName == 'tcn' or self.modelName == 'spwrnn_wo_l':
             # fix the unused data setting
             self.configs.topic_num = 100
             self.configs.use_predicted_framing = False
@@ -265,7 +265,7 @@ class Config:
             'topic_size': 384,
             'framing_size': 6,
             'time_size': 3,
-            'use_framing': True,
+            'use_framing': False,
             'constant_framing': random.choice([False, True]),
 
             # 评估设置
@@ -317,12 +317,12 @@ class Config:
             'medium_features': 16,
 
             # 学习参数设置
-            'max_epochs': 100,
+            'max_epochs': 50,
             'learning_rate_bert': 0.,
             'learning_rate_other': 0.002,
             'weight_decay_bert': 0.,
             'weight_decay_other': 0.0001,         
-            'early_stop': 10,
+            'early_stop': 8,
 
             # 评估设置
             'KeyEval': '3.0h_Loss',
@@ -350,11 +350,11 @@ class Config:
             'eval_step': None,        # eval间隔的step数, None表示1eval/epoch
 
             # 学习参数设置
-            'early_stop': 10,
-            'max_epochs': 100,
+            'early_stop': 8,
+            'max_epochs': 50,
 
             # 调参
-            'hidden_size': random.choice([32, 64, 128, 256]),
+            'hidden_size': random.choice([16, 32, 64, 128, 256]),
             'medium_features': random.choice([8, 16, 32, 64]),
 
             'learning_rate_bert': random.choice([0,]),

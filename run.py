@@ -224,14 +224,15 @@ def run_tune(args, preconfig, seeds, tune_times=50):
             time.sleep(1.)
             continue
 
-        run_task(args=args, seeds=seeds, config=config)
-        has_debuged.append(str(config))
-        tune_number += 1
-        # try:
-        #     run_task(args=args, seeds=seeds, config=config)
-        #     has_debuged.append(str(config))
-        # except Exception as e:
-        #     logging.info(getTime() + '运行时发生错误. ' + str(e))
+        # run_task(args=args, seeds=seeds, config=config)
+        # has_debuged.append(str(config))
+        # tune_number += 1
+        try:
+            run_task(args=args, seeds=seeds, config=config)
+            has_debuged.append(str(config))
+            tune_number += 1
+        except Exception as e:
+            logging.info(getTime() + '运行时发生错误. ' + str(e))
 
 
 if __name__ == '__main__':

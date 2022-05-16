@@ -4,7 +4,7 @@ import torch.nn as nn
 import math
 import torch.nn.functional as F
 from torch.nn.utils import weight_norm
-from model_beta import SPWRNN_BETA
+from RepostLSTM import SPWRNN_BETA, FusionNet2
 
 class FusionNet(torch.nn.Module):
     def __init__(self, main_features, auxiliary_features, medium_features, target_features) -> None:
@@ -237,7 +237,7 @@ class SPWRNN_WO_L(torch.nn.Module):
         self.series_vec_func = nn.ReLU()
 
         # time related model
-        self.abs_time_fusion = FusionNet(self.config.hidden_size, self.config.time_size, self.config.medium_features, 1)
+        self.abs_time_fusion = FusionNet2(self.config.hidden_size, self.config.time_size, self.config.medium_features, 1)
 
         # final weighted results
         self.one_weight = nn.Linear(1, 1)

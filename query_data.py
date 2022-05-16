@@ -18,9 +18,9 @@ FIELDS = ["Time", "Verify", "Area",
 def get_args():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--author", "-a", type=str, required=True,
+    parser.add_argument("--author", "-a", type=str, default="renminribao",
         help="Original author to be queried.")
-    parser.add_argument("--dump_path", "-p", type=str, default="./",
+    parser.add_argument("--dump_path", "-p", type=str, default="./data",
         help="Path to save dumped results.")
     parser.add_argument("--dump_name", "-n", type=str, default="query_res",
         help="Name of the query result files.")
@@ -51,6 +51,8 @@ def proc_query(collection, query, args):
     query_fields["_id"] = 0
     content_map = {}
     content_id = 0
+    if not os.path.exists(args.dump_path):
+        os.makedirs(args.dump_path)
     repost_file = os.path.join(args.dump_path, f"{args.dump_name}_repost.txt")
     ori_file = os.path.join(args.dump_path, f"{args.dump_name}_orimap.txt")
 

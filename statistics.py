@@ -1,5 +1,5 @@
 """
-对test.py产生的数据进行简单的分析
+对构造的数据集进行分析
 """
 
 import json
@@ -13,13 +13,16 @@ import os
 import random
 from tqdm import tqdm
 
+DPI = 200
+
+## 函数
 
 def load_repost_data(idx, data_dir="repost_data"):
     file = os.path.join(data_dir, str(idx) + ".csv")
     df = pd.read_csv(file)
     return df['time'].to_list()
 
-def draw_hist(data_list, start, end, width, x_label, file_name, lambda_expression=None):
+def draw_hist(data_list, start, end, width, x_label, title, file_name, lambda_expression=None):
     if lambda_expression:
         example = [lambda_expression(item) for item in data_list]
     else:
@@ -29,8 +32,9 @@ def draw_hist(data_list, start, end, width, x_label, file_name, lambda_expressio
     plt.xlabel(x_label)
     plt.ylabel('count')
     plt.xlim(start,end)
+    plt.title(title)
     # plt.plot(hist_range[1:]-(hist_range//2),frequency_each,color='palevioletred')  #利用返回值来绘制区间中点连线
-    plt.savefig(file_name)
+    plt.savefig(file_name, dpi=DPI)
     plt.clf()
 
 def get_time_series(data_list, start, end, width, lambda_expression=None):
@@ -39,31 +43,88 @@ def get_time_series(data_list, start, end, width, lambda_expression=None):
     else:
         example = data_list
     hist_range = np.arange(start, int(end + 1), width)
-    frequency_each,_,_= plt.hist(example, hist_range, color='red', width=width,alpha=0.7)  #alpha设置透明度，0为完全透明
+    frequency_each,_,_= plt.hist(example, hist_range, color='red', width=width, alpha=0.7)  #alpha设置透明度，0为完全透明
     plt.clf()
     return frequency_each
 
-file_name = []
-for root, dirs, files in os.walk("repost_data", topdown=False):
-    for name in files:
-        file_name.append(os.path.join(root, name))
 
-print(len(file_name))
+## 分析开始
+images_overall_save_dir = "images_overall"
+images_save_dir = "images"
+for dir in [images_overall_save_dir, images_save_dir]:
+    if not os.path.exists(dir):
+        os.makedirs(dir)
 
-content_df = pd.read_csv("content.csv")
+data_dir = "/home/disk/disk2/lw/covid-19-weibo-processed/renminribao"
+repost_dir = os.path.join(data_dir, 'repost_data')
 
-content_text = content_df["content"].to_list()
-repost_num = content_df["repost_num"].to_list()
-content_len = [len(text) for text in content_text]
+content_file = os.path.join(data_dir, "content.csv")
+
+content_df = pd.read_csv(content_file)
+
+texts = content_df['content'].to_list()
+repost_nums = content_df['repost_num'].to_list()
+publish_time = content_df['publish_time'].to_list()
+
+legal_weibo_idx = []
+for i in range(len(repost_nums)):
+    if repost_nums[i] < 100:
+        continue
+    else:
+        legal_weibo_idx.append(i)
+
+print("Legal weibo num:", len(legal_weibo_idx))
+
+legal_weibo = []
+legal_weibo_repost_num = []
+legal_weibo_publish_time = []
+legal_weibo_time_series = []
+repost_95_time = []
+repost_90_time = []
+
+for idx in tqdm(legal_weibo_idx):
+    legal_weibo.append(texts[idx])
+    legal_weibo_repost_num.append(repost_nums[idx])
+    legal_weibo_publish_time.append(publish_time[idx])
+
+    csv_file = os.path.join(repost_dir, f"{idx}.csv")
+    repost_time = pd.read_csv(csv_file)["time"].tolist()
+    assert repost_nums[idx] == len(repost_time), "uncorrect weibo."
+    ## calc 95% 90% repost time
+    repost_len = len(repost_time)
+    idx95, idx90 = int(repost_len*0.95), int(repost_len*0.90)
+    repost_95_time.append(repost_time[idx95])
+    repost_90_time.append(repost_time[idx90])
+
+    repost_time_series = get_time_series(repost_time, 0, 24*3600, 1800)
+    legal_weibo_time_series.append(repost_time_series)
+
+print("*****************Repost Limit Statistics************")
+repost_95_time, repost_90_time = np.array(repost_95_time) / 3600, np.array(repost_90_time) / 3600
+frequency_each, _, _= plt.hist(repost_90_time, np.arange(0, 73))
+plt.title("Time to reach 90 percent of the repost")
+plt.xlabel("hours")
+plt.ylabel("Weibo number")
+plt.xlim(0, 72)
+plt.savefig(os.path.join(images_overall_save_dir, "repost90p.png"), dpi=DPI)
+plt.clf()
+frequency_each, _, _= plt.hist(repost_95_time, np.arange(0, 73))
+plt.title("Time to reach 95 percent of the repost")
+plt.xlabel("hours")
+plt.ylabel("Weibo number")
+plt.xlim(0, 72)
+plt.savefig(os.path.join(images_overall_save_dir, "repost95p.png"), dpi=DPI)
+plt.clf()
+print("Repost 95%% time: %.2f, std: %.2f; Repost 90%% time: %.2f, std: %.2f" % (np.mean(repost_95_time), np.std(repost_95_time), np.mean(repost_90_time), np.std(repost_90_time)))
 
 # 统计分位数
 print("**********************Repost Num*********************")
-print("Repost Num: 99%: " + str(np.percentile(repost_num, 99)))
-print("Repost Num: 95%: " + str(np.percentile(repost_num, 95)))
-print("Repost Num: 90%: " + str(np.percentile(repost_num, 90)))
-print("Repost Num: 10%: " + str(np.percentile(repost_num, 50)))
-print("Repost Num: 5%: " + str(np.percentile(repost_num, 5)))
-print("Repost Num: 1%: " + str(np.percentile(repost_num, 1)))
+print("Repost Num: 99%: " + str(np.percentile(legal_weibo_repost_num, 99)))
+print("Repost Num: 95%: " + str(np.percentile(legal_weibo_repost_num, 95)))
+print("Repost Num: 90%: " + str(np.percentile(legal_weibo_repost_num, 90)))
+print("Repost Num: 10%: " + str(np.percentile(legal_weibo_repost_num, 50)))
+print("Repost Num: 5%: " + str(np.percentile(legal_weibo_repost_num, 5)))
+print("Repost Num: 1%: " + str(np.percentile(legal_weibo_repost_num, 1)))
 
 
 # 筛选编号
@@ -77,33 +138,86 @@ def filter(array, max_length=5000):
             result.append(i)
     return result
 
-set_95 = filter(repost_num, max_length=np.percentile(repost_num, 95))
+print("min repost num:", min(legal_weibo_repost_num), "max repost num:", max(legal_weibo_repost_num))
+print("avg_repost_num:", np.average(legal_weibo_repost_num))
 
+base_time = time.mktime(time.strptime('2020/01/01 00:00:00', '%Y/%m/%d %H:%M:%S'))
 
-repost_num_list_idx = list(set_95)
-repost_num_list = [repost_num[i] for i in repost_num_list_idx]
-print(np.argmin(repost_num), "repost num: ", repost_num[np.argmin(repost_num)])
-draw_hist(repost_num_list, 0, max(repost_num_list)+200, 200, "repost_num", "images_overall/repost_num.png")
+print("min weibo time idx:", legal_weibo_idx[ np.argmin(legal_weibo_publish_time) ] )
+print("min weibo time:", time.localtime( min(legal_weibo_publish_time) + base_time) )
+
+print("max weibo time idx:", legal_weibo_idx[ np.argmax(legal_weibo_publish_time) ] )
+print("max weibo time:", time.localtime( max(legal_weibo_publish_time) + base_time) )
+
+draw_hist(legal_weibo_repost_num, 0, 11000, 200, "repost number", "Repost Number Histogram", "images_overall/repost_num.png")
 # 挑选几个例子画图
 
 print("**********************Content Len*********************")
-print(max(content_len))
-print(min(content_len))
-draw_hist(content_len, 0, max(content_len)+100, 100, "content_len", "images_overall/content_len.png")
+legal_weibo_content_len = [len(weibo) for weibo in legal_weibo]
+print("Content Len: 99%: " + str(np.percentile(legal_weibo_content_len, 99)))
+print("Content Len: 95%: " + str(np.percentile(legal_weibo_content_len, 95)))
+print("Content Len: 90%: " + str(np.percentile(legal_weibo_content_len, 90)))
+print("max:", max(legal_weibo_content_len), "min:", min(legal_weibo_content_len))
+print("avg:", np.average(legal_weibo_content_len))
+draw_hist(legal_weibo_content_len, 0, max(legal_weibo_content_len) + 100, 100, "content length", "Content Length Histogram", "images_overall/content_len.png")
 
-random.shuffle(set_95)
-# for i in range(20):
-#     draw_hist(data_list=load_repost_data(set_95[i]), start=0, end=200, width=10,
-#                 x_label='days', file_name='images/days'+str(i)+'.jpg', 
-#                 lambda_expression=lambda x: x/24)
-#     draw_hist(data_list=load_repost_data(set_95[i]), start=0, end=48, width=1,
-#                 x_label='hours', file_name='images/hours'+str(i)+'.jpg')
-#     draw_hist(data_list=load_repost_data(set_95[i]), start=0, end=200, width=10,
-#                 x_label='log(days)', file_name='images/log_days'+str(i)+'.jpg', 
-#                 lambda_expression=lambda x: np.log(x/24+1))
-#     draw_hist(data_list=load_repost_data(set_95[i]), start=0, end=48, width=1,
-#                 x_label='log(hours)', file_name='images/log_hours'+str(i)+'.jpg',
-#                 lambda_expression=lambda x: np.log(x+1))
+legal_weibo_time_series = np.array(legal_weibo_time_series)
+
+for i in range(10):
+    x_label = np.arange(0.5, 24.5, 0.5)
+    ## 增量转发数图
+    plt.clf()
+    idx = legal_weibo_idx[i]
+    plt.plot(x_label, legal_weibo_time_series[i], color='red', marker='v',linestyle='--')
+    plt.xlim(0, 24)
+    plt.ylim(bottom=0)
+    plt.xlabel("hours")
+    plt.ylabel("repost number in last half hour")
+    plt.title("Repost Number Series")
+    plt.savefig(os.path.join(images_save_dir,  f"{idx}_repost.png"), dpi=DPI)
+
+    ## 累计转发数图
+    new_array = np.zeros_like(legal_weibo_time_series[i])
+    for j in range(len(legal_weibo_time_series[i])):
+        new_array[j] = np.sum(legal_weibo_time_series[i][:j+1])
+    new_array = np.concatenate([[0], new_array])
+    x_label = np.concatenate([[0], x_label])
+    plt.clf()
+    plt.plot(x_label, new_array, color='green', marker='v',linestyle='--')
+    plt.xlim(0, 24)
+    plt.ylim(bottom=0)
+    plt.xlabel("hours")
+    plt.ylabel("cumulative repost number")
+    plt.title("Cumulative Repost Number Series")
+    plt.savefig(os.path.join(images_save_dir,  f"{idx}_cumulative_repost.png"), dpi=DPI)
+
+## 全部样本的平均转发数趋势
+gross_repost_series = np.average(legal_weibo_time_series, axis=0)
+## 增量转发数图
+x_label = np.arange(0.5, 24.5, 0.5)
+plt.clf()
+plt.plot(x_label, gross_repost_series, color='red', marker='^',linestyle=None)
+plt.xlim(0, 24)
+plt.ylim(bottom=0)
+plt.xlabel("hours")
+plt.ylabel("repost number in last half hour")
+plt.title("Average Repost Number Series")
+plt.savefig(os.path.join(images_overall_save_dir,  f"gross_repost.png"), dpi=DPI)
+
+## 累计转发数图
+new_array = np.zeros_like(gross_repost_series)
+for i in range(len(gross_repost_series)):
+    new_array[i] = np.sum(gross_repost_series[:i+1])
+new_array = np.concatenate([[0], new_array])
+x_label = np.concatenate([[0], x_label])
+plt.clf()
+plt.plot(x_label, new_array, color='green', marker='^',linestyle=None)
+plt.xlim(0, 24)
+plt.ylim(bottom=0)
+plt.xlabel("hours")
+plt.ylabel("cumulative repost number")
+plt.title("Cumulative Averge Repost Number Series")
+plt.savefig(os.path.join(images_overall_save_dir,  f"gross_cumulative_repost.png"), dpi=DPI)
 
 # repost_vectors_48h = []
 # repost_vectors_24h = []
@@ -124,42 +238,3 @@ random.shuffle(set_95)
 # pd.DataFrame(text_df_48h).to_csv('data/48.csv')
 # pd.DataFrame(text_df_24h).to_csv('data/24.csv')
 
-
-def getKmeans(n_clusters):
-    repost_vectors_48h = np.load('data/48.npy')
-    repost_vectors_24h = np.load('data/24.npy')
-    LOG = True
-    if LOG:
-        repost_vectors_48h = np.log(repost_vectors_48h + 1)
-        repost_vectors_24h = np.log(repost_vectors_24h + 1)
-
-    # K-均值聚类
-    from sklearn.cluster import KMeans
-    x = np.arange(2,11,1)
-    cluster_loss_48h = []
-    cluster_loss_24h = []
-    # for i in x:
-    #     n_clusters=i
-    #     cluster = KMeans(n_clusters=n_clusters,random_state=0).fit(repost_vectors_48h)
-    #     # print("Kmeans%d Loss:" % n_clusters, cluster.inertia_)
-    #     cluster_loss_48h.append(cluster.inertia_)
-    #     cluster = KMeans(n_clusters=n_clusters,random_state=0).fit(repost_vectors_24h)
-    #     cluster_loss_24h.append(cluster.inertia_)
-
-    cluster = KMeans(n_clusters=n_clusters,random_state=0).fit(repost_vectors_24h)
-
-    return cluster
-
-
-# plt.plot(x, cluster_loss_24h)
-# plt.xlabel("Cluster Num")
-# plt.ylabel("Cluster Loss")
-# plt.title("24h time series cluster result")
-# plt.savefig("LOG24h.png" if LOG else "24h.png")
-# plt.clf()
-# plt.plot(x, cluster_loss_48h)
-# plt.xlabel("Cluster Num")
-# plt.ylabel("Cluster Loss")
-# plt.title("48h time series cluster result")
-# plt.savefig("LOG48h.png" if LOG else "48h.png")
-# plt.clf()
