@@ -10,9 +10,8 @@ class Config:
         MODEL_MAP = {
             'rnn': self.__RNN,
             'tcn': self.__TCN,
-            'spwrnn': self.__SPWRNN,
-            'spwrnn2': self.__SPWRNN,
-            'spwrnn_beta': self.__SPWRNN_BETA,
+            'spwrnn': self.__REPOSTLSTM_MANUAL_FRAMING,
+            'spwrnn_beta': self.__REPOSTLSTM,
             'spwrnn_wo_l': self.__SPWRNN_WO_L,
             'framing': self.__FRAMING,
         }
@@ -37,7 +36,7 @@ class Config:
                     self.configs[key] = self.preconfig[key]
 
         ## model config internal conflict
-        if self.modelName == 'rnn' or self.modelName == 'tcn' or self.modelName == 'spwrnn_wo_l':
+        if self.modelName in ['rnn', 'tcn', 'spwrnn_wo_l', 'framing']:
             # fix the unused data setting
             self.configs.topic_num = 100
             self.configs.use_predicted_framing = False
@@ -64,6 +63,9 @@ class Config:
                 self.configs.language_proj_size = 1
                 self.configs.topic_proj_size = 1
 
+        if self.modelName == "spwrnn":
+            self.configs.use_predicted_framing = False
+
         return
 
     
@@ -81,7 +83,7 @@ class Config:
             'interval': 1800,        # 计数时间间隔 600, 900, 1200, 1800, 3600s
             'min_repost': 100,      # 最低转发次数
             'max_repost': 10000,    # 最大转发次数
-            'observe_time': [0*3600, 1*3600, 2*3600, 3*3600, 6*3600],  # 观察时间长度
+            'observe_time': [i*3600 for i in range(13)],  # 观察时间长度
             'valid_time': 24*3600,    # 预测时间长度
             'max_seq_len': 256,     # 模型最大长度
             'topic_num': 100,        # 主题的个数
@@ -121,91 +123,10 @@ class Config:
         return dataTuneConfig if tune else dataConfig
         
 
-    def __SPWRNN(self, tune):
+    def __REPOSTLSTM_MANUAL_FRAMING(self, tune):
+        assert tune == False
 
-        Config = {
-            # 标识符
-            'name': 'SPWRNN',
-            'actual_model': 'SPWRNN',
-
-            # 预训练模型设置
-            'language_model': True,
-            'pretrained_model': '/home/disk/disk2/lw/pretrained_model/chinese-roberta-wwm-ext',
-
-            # 模型固定参数
-            'topic_size': 384,
-            'framing_size': 6,
-            'time_size': 3,
-
-            # 模型可调参数
-            'hidden_size': 64,             # history
-            'public_size': 128,             # public vector size
-            'language_proj_size': 8,
-            'topic_proj_size': 16,
-            'medium_features': 8,
-            'use_framing': True,
-            'initialize_steps': 2,
-
-            # 学习参数设置
-            'max_epochs': 100,
-            'learning_rate_bert': 0.001,
-            'learning_rate_other': 0.002,
-            'weight_decay_bert': 0.0001,
-            'weight_decay_other': 0.0001,         
-            'early_stop': 10,
-
-            # 评估设置
-            'KeyEval': '3.0h_Loss',
-            'scheduler_mode': 'min',
-            'scheduler_patience': 4,
-            'eval_step': None,        # eval间隔的step数, None表示1eval/epoch
-        }
-
-        TuneConfig = {     
-            # 不变参数
-            # 标识符
-            'name': 'SPWRNN',
-            'actual_model': 'SPWRNN',
-
-            # 预训练模型设置
-            'language_model': True,
-            'pretrained_model': '/home/disk/disk2/lw/pretrained_model/chinese-roberta-wwm-ext',
-
-            # 模型设置
-            'topic_size': 384,
-            'framing_size': 6,
-            'time_size': 3,
-            'use_framing': True,
-
-            # 评估设置
-            'KeyEval': '3.0h_Loss',
-            'scheduler_mode': 'min',
-            'scheduler_patience': 4,
-            'eval_step': None,        # eval间隔的step数, None表示1eval/epoch
-
-            # 学习参数设置
-            'early_stop': 10,
-            'max_epochs': 100,
-
-            # 调参
-            'hidden_size': random.choice([32, 64, 128, 256]),
-            'public_size': random.choice([32, 64, 128]),
-            'language_proj_size': random.choice([8, 16, 32, 64]),
-            'topic_proj_size': random.choice([8, 16, 32, 64]),
-            'medium_features': random.choice([8, 16, 32, 64]),
-            'initialize_steps': random.choice([1, 2, 3]),
-
-            'learning_rate_bert': random.choice([0, 0, 0, 0, 1e-05, 5e-5, 5e-4, 1e-3]),
-            'learning_rate_other': random.choice([1e-4, 5e-4, 0.001, 0.002]),
-            'weight_decay_bert': random.choice([0, 0.001, 0.0001]),
-            'weight_decay_other': random.choice([0, 0.001, 0.0001]),    
-        }
-
-        return TuneConfig if tune else Config
-
-
-    def __SPWRNN_BETA(self, tune):
-
+        # Params for repostLSTM with manual framing encode.
         Config = {
             # 标识符
             'name': 'SPWRNN',
@@ -221,32 +142,83 @@ class Config:
             'time_size': 3,
 
             # 模型可调参数
-            'hidden_size': 16,             # history
-            'public_size': 128,             # public vector size
-            'language_proj_size': 16,
+            'hidden_size': 32,             # history
+            'public_size': 32,             # public vector size
             'features_proj': True,
-            'topic_proj_size': 8,
+            'language_proj_size': 16,
+            'topic_proj_size': 32,
             'medium_features': 64,
             'use_framing': True,
             'constant_framing': True,
-            'initialize_steps': 4,
+            'initialize_steps': 3,
             'unique_fusion_weights': False,
             
             'framing_loss_weight': 0.,
-            'initialize_steps_weight': 20.,
+            'initialize_steps_weight': 10.,
 
             # 学习参数设置
             'max_epochs': 50,
             'learning_rate_bert': 0.0005,
-            'learning_rate_other': 0.001,
+            'learning_rate_other': 0.002,
             'weight_decay_bert': 0.,
+            'weight_decay_other': 0.,      
+            'early_stop': 8,
+
+            # 评估设置
+            'KeyEval': '1.0h_mse',
+            'scheduler_mode': 'min',
+            'scheduler_factor': 0.1,
+            'scheduler_patience': 3,
+            'eval_step': None,        # eval间隔的step数, None表示1eval/epoch
+        }
+
+        return Config
+
+
+    def __REPOSTLSTM(self, tune):
+
+        # Params for repostLSTM with predicted framing encode.
+        Config = {
+            # 标识符
+            'name': 'SPWRNN',
+            'actual_model': 'SPWRNN_BETA',
+
+            # 预训练模型设置
+            'language_model': True,
+            'pretrained_model': '/home/disk/disk2/lw/pretrained_model/chinese-roberta-wwm-ext',
+
+            # 模型固定参数
+            'topic_size': 384,
+            'framing_size': 6,
+            'time_size': 3,
+
+            # 模型可调参数
+            'hidden_size': 64,             # history
+            'public_size': 32,             # public vector size
+            'features_proj': False,
+            'language_proj_size': 1,
+            'topic_proj_size': 1,
+            'medium_features': 16,
+            'use_framing': True,
+            'constant_framing': True,
+            'initialize_steps': 3,
+            'unique_fusion_weights': True,
+            
+            'framing_loss_weight': 0.,
+            'initialize_steps_weight': 40.,
+
+            # 学习参数设置
+            'max_epochs': 50,
+            'learning_rate_bert': 0.0005,
+            'learning_rate_other': 0.002,
+            'weight_decay_bert': 0.0001,
             'weight_decay_other': 0.,         
             'early_stop': 8,
 
             # 评估设置
-            'KeyEval': '2.0h_SeriesLoss',
+            'KeyEval': '2.0h_mse',
             'scheduler_mode': 'min',
-            'scheduler_factor': 0.25,
+            'scheduler_factor': 0.1,
             'scheduler_patience': 3,
             'eval_step': None,        # eval间隔的step数, None表示1eval/epoch
         }
@@ -265,7 +237,7 @@ class Config:
             'topic_size': 384,
             'framing_size': 6,
             'time_size': 3,
-            'use_framing': False,
+            'use_framing': True,
             'constant_framing': random.choice([False, True]),
 
             # 评估设置
@@ -377,7 +349,7 @@ class Config:
 
             # 模型设置
             # 'use_prompt': False,
-            'hidden_size': 64,
+            'hidden_size': 128,
             'layer': 1,
 
             # 学习参数设置
@@ -385,7 +357,7 @@ class Config:
             'learning_rate_bert': 1e-05,
             'learning_rate_other': 0.002,
             'weight_decay_bert': 0.,
-            'weight_decay_other': 0.0001,         
+            'weight_decay_other': 0.,         
             'early_stop': 8,
 
             # 评估设置

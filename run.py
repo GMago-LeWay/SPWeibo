@@ -28,7 +28,7 @@ def setup_seed(seed):
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--modelName', type=str, default='spwrnn_beta',
-                        help='spwrnn/spwrnn2//rnn/tcn/spwrnn_wo_l/spwrnn_beta')    
+                        help='spwrnn/rnn/tcn/spwrnn_wo_l/spwrnn_beta')    
     parser.add_argument('--dataset', type=str, default='renminribao',
                         help='weibo dataset name')  
     parser.add_argument('--model_save_dir', type=str, default='results/models',

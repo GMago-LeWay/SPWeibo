@@ -25,18 +25,18 @@ def setup_seed(seed):
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--modelName', type=str, default='framing',
-                        help='spwrnn/rnn/tcn')    
+                        help='framing')    
     parser.add_argument('--dataset', type=str, default='renminribao',
                         help='weibo dataset name')  
     parser.add_argument('--model_save_dir', type=str, default='results/models',
                         help='path to save results.')
     parser.add_argument('--res_save_dir', type=str, default='results/results',
                         help='path to save results.')
-    parser.add_argument('--device', type=int, default=0,
+    parser.add_argument('--device', type=int, default=2,
                         help='GPU id.')
     parser.add_argument('--tune', type=bool, default=False,
                         help='True if run tune task.')
-    parser.add_argument('--infer', type=bool, default=False,
+    parser.add_argument('--infer', type=bool, default=True,
                         help='True if run infer task.')
     parser.add_argument('--load', type=str, default='results/models/framing.pth',
                         help='model to be loaded in infer task.')
@@ -62,20 +62,21 @@ def run(args, config):
 
     return test_results
 
-def run_eval(args, config):
-    
-    # model settings
-    # BUG
+def run_eval(args, seeds, config):
+    setup_seed(seeds[0])
+    args.model_save_path = os.path.join(args.model_save_dir,
+                                        f'{args.modelName}.pth')
+    assert os.path.exists(args.model_save_path)
     dataset_ = getData('spwrnn')(args=args, config=config)
-    train_loader, val_loader, test_loader = dataset_.get_train_val_dataloader()
     model = BERT_CLS(config=config, args=args).to(args.device)
-    model.load_state_dict(torch.load(args.load))
     train = TrainBERT(args=args, config=config)
+    train_loader, val_loader, test_loader = dataset_.get_train_val_dataloader()
 
-    # infer
-    results, pred, true = train.do_test(model, test_loader, mode='TEST')
+    # test process
+    model.load_state_dict(torch.load(args.model_save_path))
+    test_results, pred, true = train.do_test(model=model, dataloader=test_loader, mode="TEST")
 
-    return results
+    return test_results
 
 
 def run_task(args, seeds, config):
@@ -170,7 +171,7 @@ if __name__ == '__main__':
     args.device = 'cuda:'+ str(args.device)
     if args.infer:
         configure = Config(modelName=args.modelName, dataset=args.dataset).get_config()
-        run_eval(args=args, config=configure)
+        run_eval(args=args, seeds=[111], config=configure)
     elif not args.tune:
         args.model_save_dir = os.path.join(args.model_save_dir, 'regression')
         configure = Config(modelName=args.modelName, dataset=args.dataset).get_config()

@@ -29,9 +29,9 @@ class FusionNet2(torch.nn.Module):
         return result
 
 
-class SPWRNN_BETA(torch.nn.Module):
+class RepostLSTM(torch.nn.Module):
     def __init__(self, config, args) -> None:
-        super(SPWRNN_BETA, self).__init__()
+        super(RepostLSTM, self).__init__()
         self.config = config
         self.args = args
 

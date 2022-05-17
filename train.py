@@ -11,7 +11,6 @@ import torch
 import torch.nn as nn
 from torch import optim
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from model_beta import SPWRNN_BETA
 
 
 from utils import dict_to_str, getTime
@@ -232,7 +231,7 @@ class WeightedMSE(nn.Module):
         return self.loss(pred, true)
 
 
-class SPWRNN_WITH_FRAMING():
+class RepostLSTM():
     def __init__(self, args, config):
         self.args = args
         self.config = config
@@ -433,9 +432,8 @@ def getTrain(modelName):
     TRAIN_MAP = {
         'rnn': SPWRNN,
         'tcn': SPWRNN,
-        'spwrnn': SPWRNN,
-        'spwrnn2': SPWRNN,
-        'spwrnn_beta': SPWRNN_WITH_FRAMING,
+        'spwrnn': RepostLSTM,
+        'spwrnn_beta': RepostLSTM,
         'spwrnn_wo_l': SPWRNN,
     }
 
