@@ -77,12 +77,13 @@ def run(args, config):
 
 def run_eval(args, config):
     # model settings
+    config.use_predicted_framing=False
     dataset_ = getData(args.modelName)(args=args, config=config)
-    model_to_be_init = getModel(modelName=args.modelName)
-    model = model_to_be_init(config=config, args=args).to(args.device)
-    model.load_state_dict(torch.load(args.load))
-    train_to_be_init = getTrain(modelName=args.modelName)
-    train = train_to_be_init(args=args, config=config)
+    # model_to_be_init = getModel(modelName=args.modelName)
+    # model = model_to_be_init(config=config, args=args).to(args.device)
+    # model.load_state_dict(torch.load(args.load))
+    # train_to_be_init = getTrain(modelName=args.modelName)
+    # train = train_to_be_init(args=args, config=config)
 
     # framing analysis
     original_data = dataset_.get_data()
@@ -101,49 +102,51 @@ def run_eval(args, config):
         framing_num[key] = len(framing_cls[key])
         framing_cls_avg_repost[key] = np.mean(framing_cls[key], axis=0)
 
-    # infer
-    framing_cls_avg_repost_counter_facts = {}
-    num = 0
-    for key in framing_cls_avg_repost:
-        num += 1
-        print(f"{num} counter fact experiment.")
-        framing_decode = np.array([eval(i) for i in key])
-        # set samples to fixed framing.
-        for i in range(len(original_data)):
-            original_data[i][4] = framing_decode
+    # # infer
+    # framing_cls_avg_repost_counter_facts = {}
+    # num = 0
+    # for key in framing_cls_avg_repost:
+    #     num += 1
+    #     print(f"{num} counter fact experiment.")
+    #     framing_decode = np.array([eval(i) for i in key])
+    #     # set samples to fixed framing.
+    #     for i in range(len(original_data)):
+    #         original_data[i][4] = framing_decode
 
-        # predict the counter fact result.
-        preds = []
-        train_loader, val_loader, test_loader = dataset_.get_train_val_dataloader(data=original_data)
-        for dataloader in [train_loader, val_loader, test_loader]:
-            pred = train.do_infer(model, dataloader)
-            preds.append(pred)
-        preds = np.concatenate(preds, axis=0)
-        framing_cls_avg_repost_counter_facts[key] = np.mean(preds, axis=0)
+    #     # predict the counter fact result.
+    #     preds = []
+    #     train_loader, val_loader, test_loader = dataset_.get_train_val_dataloader(data=original_data)
+    #     for dataloader in [train_loader, val_loader, test_loader]:
+    #         pred = train.do_infer(model, dataloader)
+    #         preds.append(pred)
+    #     preds = np.concatenate(preds, axis=0)
+    #     framing_cls_avg_repost_counter_facts[key] = np.mean(preds, axis=0)
 
     # draw results
     save_dir = os.path.join(args.res_save_dir, 'figures')
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
-    for key in framing_cls_avg_repost:
+    for idx, key in enumerate(['100000', '010000', '001000', '000100', '000010', '000001', '000000', '011000', '001001']):
         repost_num = np.e ** framing_cls_avg_repost[key] - 1
-        repost_num_counter_fact = np.e ** framing_cls_avg_repost_counter_facts[key] - 1
-        x_label = np.arange(0.5, 24.5, 0.5)
+        repost_num = np.concatenate([[0], repost_num])
+        # repost_num_counter_fact = np.e ** framing_cls_avg_repost_counter_facts[key] - 1
+        x_label = np.arange(0.0, 24.5, 0.5)
         plt.clf()
-        plt.plot(x_label, repost_num, color='red', marker='v',linestyle='--')
+        plt.plot(x_label, repost_num, color='red', marker='o',linestyle='dotted')
         plt.annotate("%.1f" % repost_num[-1], (x_label[-1], repost_num[-1]-2))
+        plt.xlim(0, 24)
+        plt.ylim(bottom=0)
         plt.xlabel("hours")
-        plt.ylabel("repost number")
-        plt.title(key + " fact, sample num: %d" % framing_num[key])
-        plt.savefig(os.path.join(save_dir, key + "_fact.png"))
-        plt.clf()
-        plt.plot(x_label, repost_num_counter_fact, color='green', marker='v',linestyle='--')
-        plt.annotate("%.1f" % repost_num_counter_fact[-1], (x_label[-1], repost_num_counter_fact[-1]-2))
-        plt.xlabel("hours")
-        plt.ylabel("repost number")
-        plt.title(key + " counter_fact")
-        plt.savefig(os.path.join(save_dir, key + "_counter_fact.png"))
-
+        plt.ylabel("cumulative repost number")
+        plt.title("Framing code:" + key + f", count:{framing_num[key]}")
+        plt.savefig(os.path.join(save_dir, f"{idx}.png"), dpi=200)
+        # plt.clf()
+        # plt.plot(x_label, repost_num_counter_fact, color='green', marker='v',linestyle='--')
+        # plt.annotate("%.1f" % repost_num_counter_fact[-1], (x_label[-1], repost_num_counter_fact[-1]-2))
+        # plt.xlabel("hours")
+        # plt.ylabel("repost number")
+        # plt.title(key + " counter_fact")
+        # plt.savefig(os.path.join(save_dir, key + "_counter_fact.png"))
     return None
 
 
