@@ -1,5 +1,6 @@
 """
-对构造的数据集进行分析
+论文中figure的绘制(2023.05.27重新整理）
+Figure 3/4/5
 """
 
 import json
@@ -15,7 +16,7 @@ from tqdm import tqdm
 
 DPI = 200
 
-## 函数
+## 绘制直方图与得到时间序列
 
 def draw_hist(data_list, start, end, width, x_label, title, file_name, lambda_expression=None):
     if lambda_expression:
